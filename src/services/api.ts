@@ -25,7 +25,14 @@ import {
 // ---------------------------------------------------------------------------
 // Config & Helpers
 // ---------------------------------------------------------------------------
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+// VITE_API_URL semantics:
+//   - not defined        -> dev default http://localhost:8000
+//   - set to "" (empty)  -> same-origin: requests go to /api/... and are proxied
+//                           by the vite dev/preview server to the backend
+//   - set to a URL       -> that URL is used verbatim
+const API_BASE_URL = import.meta.env.VITE_API_URL !== undefined
+  ? import.meta.env.VITE_API_URL
+  : 'http://localhost:8000';
 const API_TIMEOUT_MS = 8000;
 
 // Helper to get base without trailing slash

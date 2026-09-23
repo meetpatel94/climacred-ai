@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_USER_ID = "default"
 
-def _normalize_profile(data: Dict[str, Any]) -> Dict[str, Any]:
+def _normalize_profile(data: Dict[str, Any], fill_defaults: bool = True) -> Dict[str, Any]:
     # Map frontend aliases to canonical snake_case and preserve both
     # Canonical is snake_case; frontend is camelCase/Pascal
     mapping = {
@@ -70,6 +70,8 @@ def _normalize_profile(data: Dict[str, Any]) -> Dict[str, Any]:
     if "business_name" not in normalized and "name" not in normalized:
         pass
     # Ensure required fields have defaults if missing for front compat
+    if not fill_defaults:
+        return normalized
     defaults = {
         "business_name": "ABC Textile Manufacturing Ltd.",
         "name": "ABC Textile Manufacturing Ltd.",
@@ -165,11 +167,21 @@ def create_or_update_profile(data: Dict[str, Any], user_id: str = DEFAULT_USER_I
     # For patch, we validate after merging
     col = get_collection(COLLECTIONS["business_profiles"])
     existing = col.find_one({"user_id": user_id})
+    # BUG FIX: normalize the INCOMING payload alone first, so a value submitted via
+    # either naming convention (e.g. only "businessType", or only "business_type")
+    # always wins over the stale value stored in the existing document.
+    # Previously, merging the stored doc first made the stored canonical key look
+    # "explicitly provided", silently discarding alias-only updates.
+    incoming = _normalize_profile(dict(data), fill_defaults=False)
+    incoming.pop("_id", None)
+    incoming.pop("created_at", None)
+    incoming.pop("updated_at", None)
     if existing:
-        merged = {**existing, **data}
+        base = {k: v for k, v in existing.items() if k not in ("_id",)}
+        merged = {**base, **incoming}
     else:
-        merged = data
-    # Normalize before validation
+        merged = incoming
+    # Re-sync aliases on the merged document (incoming canonical value wins on conflict)
     normalized = _normalize_profile(merged)
     # Extract canonical for validation
     validate_business_profile({
