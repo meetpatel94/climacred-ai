@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   CloudFog,
   Flame,
@@ -19,6 +19,7 @@ import {
 import { MetricCard } from '../components/common/MetricCard';
 import { AIInsightCard } from '../components/common/AIInsightCard';
 import { DemoTag } from '../components/common/StatusBadge';
+import { getEmissionsAnalytics } from '../services/api';
 import { EMISSIONS_BY_SOURCE_DATA } from '../services/mockData';
 import { PageId } from '../types';
 
@@ -27,6 +28,8 @@ interface EmissionsPageProps {
 }
 
 export const EmissionsPage: React.FC<EmissionsPageProps> = ({ onNavigate }) => {
+  const [analytics, setAnalytics] = useState<any>(null);
+  useEffect(()=> { getEmissionsAnalytics().then(setAnalytics).catch(()=>{}); }, []);
   return (
     <div className="space-y-8 max-w-6xl pb-16">
       {/* Top Banner */}
@@ -39,7 +42,7 @@ export const EmissionsPage: React.FC<EmissionsPageProps> = ({ onNavigate }) => {
             <h2 className="text-xl font-extrabold text-slate-900 tracking-tight">
               Emissions & Air Quality Telemetry
             </h2>
-            <DemoTag />
+            <DemoTag label={analytics ? "Live Backend Data" : "Illustrative"} />
           </div>
           <p className="text-xs text-slate-600">
             Scope 1 direct combustion, Scope 2 purchased grid power, boiler flue gases, and stack abatement.

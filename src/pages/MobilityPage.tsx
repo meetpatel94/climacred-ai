@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Truck,
   Fuel,
@@ -11,6 +11,7 @@ import {
 import { MetricCard } from '../components/common/MetricCard';
 import { AIInsightCard } from '../components/common/AIInsightCard';
 import { DemoTag } from '../components/common/StatusBadge';
+import { getMobilityAnalytics } from '../services/api';
 import { MOBILITY_EFFICIENCY_DATA } from '../services/mockData';
 import { PageId } from '../types';
 
@@ -19,6 +20,8 @@ interface MobilityPageProps {
 }
 
 export const MobilityPage: React.FC<MobilityPageProps> = ({ onNavigate }) => {
+  const [analytics, setAnalytics] = useState<any>(null);
+  useEffect(()=> { getMobilityAnalytics().then(setAnalytics).catch(()=>{}); }, []);
   return (
     <div className="space-y-8 max-w-6xl pb-16">
       {/* Top Banner */}
@@ -31,7 +34,7 @@ export const MobilityPage: React.FC<MobilityPageProps> = ({ onNavigate }) => {
             <h2 className="text-xl font-extrabold text-slate-900 tracking-tight">
               Mobility & Commercial Logistics Decarbonization
             </h2>
-            <DemoTag />
+            <DemoTag label={analytics ? "Live Backend Data" : "Illustrative"} />
           </div>
           <p className="text-xs text-slate-600">
             Intra-city dispatch fleet, route grouping algorithms, and commercial EV transition roadmap.

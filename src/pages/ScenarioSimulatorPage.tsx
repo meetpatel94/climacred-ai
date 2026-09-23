@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Sliders,
   Zap,
@@ -8,6 +8,8 @@ import {
   ArrowRight,
   RotateCcw,
   Check,
+  Loader2,
+  AlertTriangle,
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -22,6 +24,7 @@ import { GREEN_SOLUTIONS_LIBRARY } from '../services/mockData';
 import { DemoTag } from '../components/common/StatusBadge';
 import { AIInsightCard } from '../components/common/AIInsightCard';
 import { PageId } from '../types';
+import { getGreenSolutions, runScenarioSimulationWithScale, getClimateFingerprint } from '../services/api';
 
 interface ScenarioSimulatorPageProps {
   onNavigate: (page: PageId) => void;
@@ -34,6 +37,39 @@ export const ScenarioSimulatorPage: React.FC<ScenarioSimulatorPageProps> = ({
 }) => {
   const [selectedIds, setSelectedIds] = useState<string[]>(initialSelectedSolutionIds);
   const [adoptionScalePercent, setAdoptionScalePercent] = useState<number>(100);
+  const [solutions, setSolutions] = useState(GREEN_SOLUTIONS_LIBRARY);
+  const [backendResult, setBackendResult] = useState<any>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [baseScore, setBaseScore] = useState(58);
+
+  useEffect(() => {
+    getGreenSolutions().then(setSolutions).catch(()=> setSolutions(GREEN_SOLUTIONS_LIBRARY));
+    getClimateFingerprint().then(fp => setBaseScore(fp.overallScore)).catch(()=> setBaseScore(58));
+  }, []);
+
+  // Debounced backend simulation
+  useEffect(() => {
+    let cancelled = false;
+    async function simulate() {
+      if (selectedIds.length === 0) {
+        setBackendResult(null);
+        return;
+      }
+      setLoading(true);
+      setError(null);
+      try {
+        const result = await runScenarioSimulationWithScale(selectedIds, adoptionScalePercent);
+        if (!cancelled) setBackendResult(result);
+      } catch (e: any) {
+        if (!cancelled) setError(e.message || 'Simulation failed');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+    const t = setTimeout(simulate, 300);
+    return () => { cancelled = true; clearTimeout(t); };
+  }, [selectedIds, adoptionScalePercent]);
 
   const toggleSolution = (id: string) => {
     setSelectedIds((prev) =>
@@ -42,45 +78,35 @@ export const ScenarioSimulatorPage: React.FC<ScenarioSimulatorPageProps> = ({
   };
 
   const selectAll = () => {
-    setSelectedIds(GREEN_SOLUTIONS_LIBRARY.map((s) => s.id));
+    setSelectedIds(solutions.map((s) => s.id));
   };
 
   const clearAll = () => {
     setSelectedIds([]);
   };
 
-  // Dynamic calculations based on selection & slider scale
-  const simulation = useMemo(() => {
-    const selected = GREEN_SOLUTIONS_LIBRARY.filter((s) => selectedIds.includes(s.id));
+  // Fallback local calculation if backend not available
+  const fallbackSimulation = useMemo(() => {
+    const selected = solutions.filter((s) => selectedIds.includes(s.id));
     const scaleFactor = adoptionScalePercent / 100;
-
     const baseInvestment = selected.reduce((acc, curr) => acc + curr.investmentMinInr, 0);
     const scaledInvestment = Math.round(baseInvestment * scaleFactor);
-
     const baseSavings = selected.reduce((acc, curr) => acc + curr.potentialAnnualSavingsInr, 0);
     const scaledSavings = Math.round(baseSavings * scaleFactor);
-
     const baseCo2 = selected.reduce((acc, curr) => acc + curr.co2ReductionTonnesPerYear, 0);
     const scaledCo2 = Number((baseCo2 * scaleFactor).toFixed(1));
-
     const paybackYears = scaledSavings > 0 ? Number((scaledInvestment / scaledSavings).toFixed(1)) : 0;
-
-    // Reductions
     const hasSolar = selectedIds.includes('sol-solar');
     const hasVfd = selectedIds.includes('sol-machinery-vfd');
     const hasRo = selectedIds.includes('sol-water-ro');
     const hasLeak = selectedIds.includes('sol-leak-sensors');
     const hasWaste = selectedIds.includes('sol-waste-recovery');
-
     const energyReductionPct = Math.round(((hasSolar ? 28 : 0) + (hasVfd ? 12 : 0)) * scaleFactor);
     const waterReductionPct = Math.round(((hasRo ? 58 : 0) + (hasLeak ? 9 : 0)) * scaleFactor);
     const wasteReductionPct = Math.round((hasWaste ? 66 : 0) * scaleFactor);
     const co2ReductionPct = Math.min(Math.round(((scaledCo2 / 494.4) * 100)), 65);
-
-    const projectedClimateScore = Math.min(58 + Math.round(selected.length * 4.2 * scaleFactor), 94);
-
+    const projectedClimateScore = Math.min(baseScore + Math.round(selected.length * 4.2 * scaleFactor), 94);
     return {
-      selectedCount: selected.length,
       investment: scaledInvestment,
       annualSavings: scaledSavings,
       monthlySavings: Math.round(scaledSavings / 12),
@@ -91,30 +117,46 @@ export const ScenarioSimulatorPage: React.FC<ScenarioSimulatorPageProps> = ({
       wasteReductionPct,
       co2ReductionPct,
       projectedClimateScore,
+      selectedCount: selected.length,
     };
-  }, [selectedIds, adoptionScalePercent]);
+  }, [selectedIds, adoptionScalePercent, solutions, baseScore]);
+
+  const simulation = backendResult ? {
+    investment: backendResult.totalInvestmentInr ?? backendResult.investment?.min_inr ?? fallbackSimulation.investment,
+    annualSavings: backendResult.totalAnnualSavingsInr ?? backendResult.annual_savings_inr ?? fallbackSimulation.annualSavings,
+    monthlySavings: backendResult.monthly_savings_inr ?? Math.round((backendResult.totalAnnualSavingsInr||0)/12) ?? fallbackSimulation.monthlySavings,
+    paybackYears: backendResult.payback_period_years ?? backendResult.estimatedPaybackYears ?? fallbackSimulation.paybackYears,
+    co2ReductionTonnes: backendResult.emission_change?.co2ReductionTonnes ?? backendResult.emission_change?.reduction_tonnes_co2_per_year ?? fallbackSimulation.co2ReductionTonnes,
+    energyReductionPct: backendResult.energy_change?.energyReductionPercent ?? backendResult.energy_change?.reduction_percent ?? fallbackSimulation.energyReductionPct,
+    waterReductionPct: backendResult.water_change?.waterReductionPercent ?? backendResult.water_change?.reduction_percent ?? fallbackSimulation.waterReductionPct,
+    wasteReductionPct: backendResult.waste_change?.wasteReductionPercent ?? backendResult.waste_change?.reduction_percent ?? fallbackSimulation.wasteReductionPct,
+    co2ReductionPct: backendResult.emission_change?.co2ReductionPercent ?? backendResult.emission_change?.reduction_percent ?? fallbackSimulation.co2ReductionPct,
+    projectedClimateScore: backendResult.projected_climate_score ?? backendResult.projectedClimateScore ?? fallbackSimulation.projectedClimateScore,
+    selectedCount: backendResult.selected_count ?? fallbackSimulation.selectedCount,
+    assumptions: backendResult.assumptions || [],
+  } : fallbackSimulation;
 
   // Comparison chart data (Current vs Simulated Green State)
   const comparisonData = [
     {
       metric: 'Energy (k kWh/yr)',
       Current: 462,
-      Simulated: Math.round(462 * (1 - simulation.energyReductionPct / 100)),
+      Simulated: Math.round(462 * (1 - (simulation.energyReductionPct||0) / 100)),
     },
     {
       metric: 'Water (k Litres/mo)',
       Current: 480,
-      Simulated: Math.round(480 * (1 - simulation.waterReductionPct / 100)),
+      Simulated: Math.round(480 * (1 - (simulation.waterReductionPct||0) / 100)),
     },
     {
       metric: 'Waste (kg/mo)',
       Current: 3600,
-      Simulated: Math.round(3600 * (1 - simulation.wasteReductionPct / 100)),
+      Simulated: Math.round(3600 * (1 - (simulation.wasteReductionPct||0) / 100)),
     },
     {
       metric: 'CO₂e (MT/yr)',
       Current: 494,
-      Simulated: Math.max(Math.round(494 - simulation.co2ReductionTonnes), 150),
+      Simulated: Math.max(Math.round(494 - (simulation.co2ReductionTonnes||0)), 150),
     },
   ];
 
@@ -130,11 +172,12 @@ export const ScenarioSimulatorPage: React.FC<ScenarioSimulatorPageProps> = ({
             <h2 className="text-xl font-extrabold text-slate-900 tracking-tight">
               Scenario & Green Investment Simulator
             </h2>
-            <DemoTag label="Interactive What-If Model" />
+            <DemoTag label={loading ? "Calculating..." : "Live Backend Model"} />
           </div>
           <p className="text-xs text-slate-600">
-            Combine green interventions and adjust implementation scale to simulate capital requirements, operational utility savings, payback timeline, and footprint reduction.
+            Combine green interventions and adjust implementation scale to simulate capital requirements, operational utility savings, payback timeline, and footprint reduction. <span className="text-emerald-700 font-semibold">Backend avoids double counting (energy cap 55%, water 75%).</span>
           </p>
+          {error && <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1 mt-2 flex items-center gap-1"><AlertTriangle className="w-3 h-3" /> {error} – showing local estimate.</p>}
         </div>
 
         <div className="flex items-center gap-2">
@@ -168,7 +211,7 @@ export const ScenarioSimulatorPage: React.FC<ScenarioSimulatorPageProps> = ({
       <div className="bg-white border border-slate-200/90 rounded-2xl p-6 shadow-xs space-y-4">
         <div className="flex items-center justify-between">
           <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700">
-            Select Interventions for Scenario ({simulation.selectedCount} Active)
+            Select Interventions for Scenario ({simulation.selectedCount} Active) {loading && <Loader2 className="w-3 h-3 inline animate-spin ml-1" />}
           </h4>
           <span className="text-xs font-semibold text-emerald-700">
             Click cards to toggle inclusion
@@ -176,7 +219,7 @@ export const ScenarioSimulatorPage: React.FC<ScenarioSimulatorPageProps> = ({
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {GREEN_SOLUTIONS_LIBRARY.map((sol) => {
+          {solutions.map((sol) => {
             const isSelected = selectedIds.includes(sol.id);
 
             return (
@@ -247,6 +290,14 @@ export const ScenarioSimulatorPage: React.FC<ScenarioSimulatorPageProps> = ({
             <span className="text-xs font-semibold text-slate-600">100%</span>
           </div>
         </div>
+        {simulation.assumptions?.length > 0 && (
+          <details className="pt-3 border-t border-slate-100">
+            <summary className="text-xs font-semibold text-slate-700 cursor-pointer">View backend assumptions & methodology</summary>
+            <ul className="text-[11px] text-slate-600 list-disc pl-4 mt-2 space-y-1">
+              {simulation.assumptions.map((a: string, i: number) => <li key={i}>{a}</li>)}
+            </ul>
+          </details>
+        )}
       </div>
 
       {/* Simulated Outcomes Dashboard (Financial + Environmental) */}
@@ -310,7 +361,7 @@ export const ScenarioSimulatorPage: React.FC<ScenarioSimulatorPageProps> = ({
             </span>
             <span className="text-xs font-semibold text-emerald-300">/ 100</span>
             <span className="text-[11px] text-emerald-400 font-bold ml-auto">
-              +{simulation.projectedClimateScore - 58} pts
+              +{simulation.projectedClimateScore - baseScore} pts
             </span>
           </div>
           <p className="text-[11px] text-slate-400 pt-1 border-t border-slate-800">
@@ -443,7 +494,7 @@ export const ScenarioSimulatorPage: React.FC<ScenarioSimulatorPageProps> = ({
       {/* AI Scenario Insight */}
       <AIInsightCard
         title="AI Financial & Payback Observation"
-        insight={`This simulated scenario commits ₹${(simulation.investment / 100000).toFixed(1)} Lakh to yield an estimated ₹${(simulation.annualSavings / 100000).toFixed(1)} Lakh in yearly recurring utility savings. With a ${simulation.paybackYears}-year payback, the investments pay for themselves before Year 4, subsequently delivering pure operational margin expansion.`}
+        insight={backendResult?.assumptions ? `Backend-verified scenario: ₹${(simulation.investment / 100000).toFixed(1)}L investment yields ₹${(simulation.annualSavings / 100000).toFixed(1)}L yearly savings, ${simulation.paybackYears}y payback. Assumptions include capped savings and site-specific factors. Estimated, not guaranteed.` : `This simulated scenario commits ₹${(simulation.investment / 100000).toFixed(1)} Lakh to yield an estimated ₹${(simulation.annualSavings / 100000).toFixed(1)} Lakh in yearly recurring utility savings. With a ${simulation.paybackYears}-year payback, the investments pay for themselves before Year 4, subsequently delivering pure operational margin expansion.`}
         actionText="Review Phased Implementation Timeline"
         onActionClick={() => onNavigate('transformation')}
       />

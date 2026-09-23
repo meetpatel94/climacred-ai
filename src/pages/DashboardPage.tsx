@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Zap,
   Droplets,
@@ -27,12 +27,70 @@ import { ImpactBadge, DemoTag } from '../components/common/StatusBadge';
 import { AIInsightCard } from '../components/common/AIInsightCard';
 import { MONTHLY_ENERGY_DATA, MONTHLY_WATER_DATA } from '../services/mockData';
 import { PageId } from '../types';
+import { getClimateFingerprint, getClimateAssessment, getBusinessProfile } from '../services/api';
+import { ClimateFingerprint, ClimateAssessmentData, BusinessProfile } from '../types';
 
 interface DashboardPageProps {
   onNavigate: (page: PageId) => void;
 }
 
 export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
+  const [fingerprint, setFingerprint] = useState<ClimateFingerprint | null>(null);
+  const [assessment, setAssessment] = useState<ClimateAssessmentData | null>(null);
+  const [profile, setProfile] = useState<BusinessProfile | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      try {
+        const [fp, ass, prof] = await Promise.all([
+          getClimateFingerprint(),
+          getClimateAssessment(),
+          getBusinessProfile(),
+        ]);
+        if (!cancelled) {
+          setFingerprint(fp);
+          setAssessment(ass);
+          setProfile(prof);
+        }
+      } catch (e) {
+        console.warn('Dashboard load failed', e);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+    load();
+    return () => { cancelled = true; };
+  }, []);
+
+  const overallScore = fingerprint?.overallScore ?? 58;
+  const scoreLabel = fingerprint?.scoreLabel ?? 'Transition Stage';
+  const topGaps = fingerprint?.topImprovementDimensions?.slice(0,2).join(' & ') || 'Water & Power';
+  const energyKwh = assessment?.energy.monthlyElectricityKwh ?? 38500;
+  const energyCost = assessment?.energy.monthlyElectricityBillInr ?? 346500;
+  const waterLitres = assessment?.water.monthlyWaterLitres ?? 480000;
+  const wasteKg = assessment?.waste.textileMaterialWasteKgPerMonth ?? 3600;
+  const recyclingPct = assessment?.waste.currentRecyclingPercent ?? 22;
+  const emissionsTonnes = 41.2; // could derive from emissions analytics if available
+  const fuelLitres = assessment?.mobility.monthlyFleetFuelLitres ?? 1950;
+  const vehicleCount = assessment?.mobility.deliveryVehiclesCount ?? 8;
+  const facility = profile?.facilityAreaSqFt ?? 38000;
+  const employees = profile?.employees ?? 145;
+  const businessName = profile?.name ?? 'ABC Textile Manufacturing Ltd.';
+  const businessLocation = profile?.location ?? 'Tirupur Cluster, TN';
+
+  if (loading) {
+    return (
+      <div className="space-y-8 pb-12 animate-pulse">
+        <div className="h-32 bg-slate-100 rounded-2xl" />
+        <div className="grid grid-cols-5 gap-4">
+          {[1,2,3,4,5].map(i => <div key={i} className="h-24 bg-slate-100 rounded-xl" />)}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-8 pb-12">
       {/* Top Banner: Organization Context & Readiness Indicator */}
@@ -50,10 +108,10 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
           </div>
 
           <h2 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight">
-            ABC Textile Manufacturing Ltd.
+            {businessName}
           </h2>
           <p className="text-xs sm:text-sm text-slate-600 max-w-2xl">
-            Tirupur Cluster, TN • 145 Employees • 38,000 sq.ft facility • Active assessment baseline: 68% complete.
+            {businessLocation} • {employees} Employees • {facility.toLocaleString()} sq.ft facility • Climate Readiness: {overallScore}/100
           </p>
         </div>
 
@@ -71,12 +129,12 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
                 strokeWidth="6"
                 fill="transparent"
                 strokeDasharray={163.36}
-                strokeDashoffset={163.36 * (1 - 58 / 100)}
+                strokeDashoffset={163.36 * (1 - overallScore / 100)}
                 strokeLinecap="round"
               />
             </svg>
             <div className="absolute inset-0 flex flex-col items-center justify-center">
-              <span className="text-lg font-black text-slate-900 leading-none">58</span>
+              <span className="text-lg font-black text-slate-900 leading-none">{overallScore}</span>
               <span className="text-[9px] font-bold text-slate-600">/100</span>
             </div>
           </div>
@@ -85,10 +143,10 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
             <div className="flex items-center gap-1.5">
               <span className="text-xs font-bold text-slate-900">Climate Readiness</span>
               <span className="text-[10px] font-bold text-amber-700 bg-amber-100 px-1.5 py-0.2 rounded">
-                Moderate
+                {scoreLabel}
               </span>
             </div>
-            <p className="text-xs text-slate-600 mt-0.5">Top gap: Water & Power</p>
+            <p className="text-xs text-slate-600 mt-0.5">Top gap: {topGaps}</p>
             <button
               onClick={() => onNavigate('fingerprint')}
               className="text-xs font-bold text-emerald-700 hover:text-emerald-800 hover:underline mt-1 inline-flex items-center gap-1"
@@ -104,19 +162,19 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         <MetricCard
           title="Energy Impact"
-          value="38,500"
+          value={energyKwh.toLocaleString()}
           unit="kWh/mo"
           icon={Zap}
           iconBgColor="bg-amber-50"
           iconColor="text-amber-600"
           badge="High"
           badgeColor="bg-orange-50 text-orange-700 border border-orange-200"
-          helperText="₹3.46L monthly grid bill"
+          helperText={`₹${(energyCost/100000).toFixed(2)}L monthly grid bill`}
         />
 
         <MetricCard
           title="Water Impact"
-          value="480,000"
+          value={waterLitres.toLocaleString()}
           unit="L/mo"
           icon={Droplets}
           iconBgColor="bg-cyan-50"
@@ -128,19 +186,19 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
 
         <MetricCard
           title="Waste Impact"
-          value="3,600"
+          value={wasteKg.toLocaleString()}
           unit="kg/mo"
           icon={Trash2}
           iconBgColor="bg-emerald-50"
           iconColor="text-emerald-600"
           badge="High"
           badgeColor="bg-orange-50 text-orange-700 border border-orange-200"
-          helperText="22% currently recycled"
+          helperText={`${recyclingPct}% currently recycled`}
         />
 
         <MetricCard
           title="Emissions Impact"
-          value="41.2"
+          value={emissionsTonnes.toString()}
           unit="MT CO₂e"
           icon={CloudFog}
           iconBgColor="bg-slate-100"
@@ -152,14 +210,14 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
 
         <MetricCard
           title="Mobility Impact"
-          value="1,950"
+          value={fuelLitres.toLocaleString()}
           unit="L Fuel"
           icon={Truck}
           iconBgColor="bg-indigo-50"
           iconColor="text-indigo-600"
           badge="Medium"
           badgeColor="bg-slate-100 text-slate-700 border border-slate-200"
-          helperText="8 active diesel delivery vans"
+          helperText={`${vehicleCount} active diesel delivery vans`}
         />
       </div>
 

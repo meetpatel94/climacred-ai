@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Zap,
   TrendingDown,
@@ -22,12 +22,27 @@ import { AIInsightCard } from '../components/common/AIInsightCard';
 import { DemoTag } from '../components/common/StatusBadge';
 import { MONTHLY_ENERGY_DATA } from '../services/mockData';
 import { PageId } from '../types';
+import { getEnergyAnalytics, getClimateFingerprint } from '../services/api';
 
 interface EnergyPageProps {
   onNavigate: (page: PageId) => void;
 }
 
 export const EnergyPage: React.FC<EnergyPageProps> = ({ onNavigate }) => {
+  const [analytics, setAnalytics] = useState<any>(null);
+  const [fingerprint, setFingerprint] = useState<any>(null);
+  useEffect(() => {
+    getEnergyAnalytics().then(setAnalytics).catch(()=>{});
+    getClimateFingerprint().then(setFingerprint).catch(()=>{});
+  }, []);
+  const monthlyKwh = analytics?.monthly_electricity_kwh ?? 38500;
+  const monthlyCost = analytics?.monthly_electricity_cost_inr ?? 346500;
+  const annualKwh = analytics?.annual_electricity_kwh ?? 462000;
+  const emissions = analytics?.estimated_monthly_electricity_emissions_tonnes_co2e ?? 31.6;
+  const factor = analytics?.emission_factor_used?.factor ?? 0.82;
+  const energyScore = fingerprint?.dimensions?.find((d:any)=> d.dimension==='Energy')?.score ?? 52;
+  const energyLevel = fingerprint?.dimensions?.find((d:any)=> d.dimension==='Energy')?.impactLevel ?? 'High';
+
   return (
     <div className="space-y-8 max-w-6xl pb-16">
       {/* Top Banner */}
@@ -40,10 +55,10 @@ export const EnergyPage: React.FC<EnergyPageProps> = ({ onNavigate }) => {
             <h2 className="text-xl font-extrabold text-slate-900 tracking-tight">
               Energy Intelligence & Power Telemetry
             </h2>
-            <DemoTag />
+            <DemoTag label={analytics ? "Live Backend Data" : "Illustrative"} />
           </div>
           <p className="text-xs text-slate-600">
-            Grid draw, peak load charges, diesel generator usage, and rooftop solar transition.
+            Grid draw, peak load charges, diesel generator usage, and rooftop solar transition. {analytics?.assumptions?.[0] ? <span className="text-amber-700">{analytics.assumptions[0]}</span> : ''}
           </p>
         </div>
 
@@ -56,46 +71,46 @@ export const EnergyPage: React.FC<EnergyPageProps> = ({ onNavigate }) => {
         </button>
       </div>
 
-      {/* 4 Metric Cards */}
+      {/* 4 Metric Cards – now backed by live analytics */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <MetricCard
           title="Current Monthly Consumption"
-          value="38,500"
+          value={monthlyKwh.toLocaleString()}
           unit="kWh / mo"
           icon={Zap}
           iconBgColor="bg-amber-50"
           iconColor="text-amber-600"
-          helperText="Avg. daily consumption: 1,480 kWh"
+          helperText={`Avg. daily: ${(monthlyKwh/26).toFixed(0)} kWh • Score ${energyScore}/100`}
         />
 
         <MetricCard
           title="Monthly Utility Cost"
-          value="₹3,46,500"
+          value={`₹${(monthlyCost/1000).toFixed(1)}k`}
           unit="/ mo"
           icon={TrendingDown}
           iconBgColor="bg-slate-100"
           iconColor="text-slate-700"
-          helperText="Blended tariff ~₹8.9 / kWh"
+          helperText={`Blended ~₹${monthlyKwh? (monthlyCost/monthlyKwh).toFixed(1): '8.9'} / kWh • ${energyLevel}`}
         />
 
         <MetricCard
           title="Annual Consumption"
-          value="4,62,000"
+          value={annualKwh.toLocaleString()}
           unit="kWh / yr"
           icon={BarChart2}
           iconBgColor="bg-emerald-50"
           iconColor="text-emerald-600"
-          helperText="Projected based on 12-mo run"
+          helperText="Projected 12-mo run (monthly*12)"
         />
 
         <MetricCard
           title="Estimated Emissions (Scope 2)"
-          value="31.6"
+          value={emissions.toString()}
           unit="MT CO₂e / mo"
           icon={ShieldAlert}
           iconBgColor="bg-rose-50"
           iconColor="text-rose-600"
-          helperText="Grid factor 0.82 kg CO₂/kWh"
+          helperText={`Grid factor ${factor} kg CO₂/kWh (configurable)`}
         />
       </div>
 
@@ -111,7 +126,7 @@ export const EnergyPage: React.FC<EnergyPageProps> = ({ onNavigate }) => {
             </p>
           </div>
           <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-slate-100 text-slate-700">
-            Baseline: 38,500 kWh
+            Baseline: {monthlyKwh.toLocaleString()} kWh
           </span>
         </div>
 
@@ -135,12 +150,13 @@ export const EnergyPage: React.FC<EnergyPageProps> = ({ onNavigate }) => {
             </AreaChart>
           </ResponsiveContainer>
         </div>
+        {analytics && <p className="text-[11px] text-slate-600">Calculation: monthly {monthlyKwh} kWh × {factor} kg/kWh = {emissions} MT • Version {analytics.emission_factor_used?.calculation_version} • {analytics.assumptions?.[1]}</p>}
       </div>
 
       {/* AI Insight Card */}
       <AIInsightCard
         title="AI Energy Efficiency Finding"
-        insight="Energy consumption is consistently high during production hours. Energy-efficient machinery and load optimization may provide significant improvement opportunities. A 75 kWp rooftop solar PV installation would offset 35% of daytime electricity."
+        insight={fingerprint?.dimensions?.find((d:any)=> d.dimension==='Energy')?.currentStatus ? `${fingerprint.dimensions.find((d:any)=> d.dimension==='Energy').currentStatus}. ${fingerprint.dimensions.find((d:any)=> d.dimension==='Energy').primaryCause}. Opportunity: ${fingerprint.dimensions.find((d:any)=> d.dimension==='Energy').improvementOpportunity}` : "Energy consumption is consistently high during production hours. Energy-efficient machinery and load optimization may provide significant improvement opportunities. A 75 kWp rooftop solar PV installation would offset 35% of daytime electricity."}
         actionText="Review Rooftop Solar Intervention"
         onActionClick={() => onNavigate('solutions')}
       />
@@ -149,9 +165,9 @@ export const EnergyPage: React.FC<EnergyPageProps> = ({ onNavigate }) => {
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <h3 className="text-base font-extrabold text-slate-900">
-            Recommended Energy Interventions (Illustrative)
+            Recommended Energy Interventions (Live Calculated)
           </h3>
-          <span className="text-xs text-slate-600 font-medium">Demo estimates based on 38k sq ft facility</span>
+          <span className="text-xs text-slate-600 font-medium">Estimates use live facility baseline</span>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

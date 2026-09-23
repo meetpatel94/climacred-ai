@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   CheckCircle2,
   TrendingDown,
@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { ImpactVerificationMetric, PageId } from '../types';
 import { DemoTag } from '../components/common/StatusBadge';
+import { submitImpactVerification } from '../services/api';
 import { AIInsightCard } from '../components/common/AIInsightCard';
 
 interface ImpactVerificationPageProps {
@@ -30,6 +31,20 @@ export const ImpactVerificationPage: React.FC<ImpactVerificationPageProps> = ({
   metrics,
   onNavigate,
 }) => {
+  const [formBefore, setFormBefore] = useState({energy_kwh: 10000, water_litres: 80000, waste_kg: 2000});
+  const [formAfter, setFormAfter] = useState({energy_kwh: 7200, water_litres: 61000, waste_kg: 1350});
+  const [submitting, setSubmitting] = useState(false);
+  const [submitResult, setSubmitResult] = useState<any>(null);
+  const [submitError, setSubmitError] = useState<string|null>(null);
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitting(true);
+    setSubmitError(null);
+    try {
+      const res = await submitImpactVerification({before: formBefore, after: formAfter});
+      setSubmitResult(res);
+    } catch(err:any){ setSubmitError(err.message); } finally { setSubmitting(false); }
+  };
   return (
     <div className="space-y-8 max-w-6xl pb-16">
       {/* Top Banner */}
@@ -165,6 +180,31 @@ export const ImpactVerificationPage: React.FC<ImpactVerificationPageProps> = ({
             );
           })}
         </div>
+      </div>
+
+      {/* Submit New Impact Verification Form (Backend Connected) */}
+      <div className="bg-white border border-slate-200/90 rounded-2xl p-6 shadow-xs space-y-4">
+        <h3 className="text-sm font-extrabold text-slate-900">Submit Post-Implementation Data (Live Backend Verification)</h3>
+        <p className="text-xs text-slate-600">Enter before/after meter values. Backend calculates <em>observed change</em> and <em>estimated environmental impact</em> – terminology: reported implementation outcome (not verified carbon reduction unless methodology supports).</p>
+        {submitError && <div className="p-2 rounded-lg bg-rose-50 border border-rose-200 text-xs text-rose-800">{submitError}</div>}
+        {submitResult && <div className="p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-xs space-y-1"><p className="font-bold text-emerald-800">Verification calculated – {submitResult.summary}</p><ul className="list-disc pl-4">{submitResult.calculated_metrics?.map((m:any, i:number)=> <li key={i}>{m.metric}: {m.before} → {m.after} ({m.percentage_change}%) – {m.estimated_impact}</li>)}</ul><p className="text-[11px] text-slate-600">Terminology note: {submitResult.terminology?.disclaimer}</p></div>}
+        <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="space-y-3 p-3 rounded-xl bg-slate-50 border border-slate-200">
+            <h4 className="text-xs font-bold text-slate-900 uppercase">Before (Baseline)</h4>
+            <label className="block text-xs font-semibold">Energy kWh/mo <input type="number" value={formBefore.energy_kwh} onChange={e=> setFormBefore({...formBefore, energy_kwh: Number(e.target.value)})} className="w-full mt-1 px-2 py-1.5 rounded-lg border border-slate-300 text-sm" /></label>
+            <label className="block text-xs font-semibold">Water Litres/mo <input type="number" value={formBefore.water_litres} onChange={e=> setFormBefore({...formBefore, water_litres: Number(e.target.value)})} className="w-full mt-1 px-2 py-1.5 rounded-lg border border-slate-300 text-sm" /></label>
+            <label className="block text-xs font-semibold">Waste kg/mo <input type="number" value={formBefore.waste_kg} onChange={e=> setFormBefore({...formBefore, waste_kg: Number(e.target.value)})} className="w-full mt-1 px-2 py-1.5 rounded-lg border border-slate-300 text-sm" /></label>
+          </div>
+          <div className="space-y-3 p-3 rounded-xl bg-emerald-50/50 border border-emerald-200">
+            <h4 className="text-xs font-bold text-emerald-800 uppercase">After (Realized)</h4>
+            <label className="block text-xs font-semibold">Energy kWh/mo <input type="number" value={formAfter.energy_kwh} onChange={e=> setFormAfter({...formAfter, energy_kwh: Number(e.target.value)})} className="w-full mt-1 px-2 py-1.5 rounded-lg border border-slate-300 text-sm" /></label>
+            <label className="block text-xs font-semibold">Water Litres/mo <input type="number" value={formAfter.water_litres} onChange={e=> setFormAfter({...formAfter, water_litres: Number(e.target.value)})} className="w-full mt-1 px-2 py-1.5 rounded-lg border border-slate-300 text-sm" /></label>
+            <label className="block text-xs font-semibold">Waste kg/mo <input type="number" value={formAfter.waste_kg} onChange={e=> setFormAfter({...formAfter, waste_kg: Number(e.target.value)})} className="w-full mt-1 px-2 py-1.5 rounded-lg border border-slate-300 text-sm" /></label>
+          </div>
+          <div className="md:col-span-2 flex justify-end">
+            <button type="submit" disabled={submitting} className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-md disabled:opacity-50">{submitting ? "Verifying..." : "Verify Observed Change via Backend"}</button>
+          </div>
+        </form>
       </div>
 
       {/* AI Verification Note */}

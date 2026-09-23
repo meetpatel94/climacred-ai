@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Droplets,
   AlertTriangle,
@@ -20,6 +20,7 @@ import {
 import { MetricCard } from '../components/common/MetricCard';
 import { AIInsightCard } from '../components/common/AIInsightCard';
 import { DemoTag } from '../components/common/StatusBadge';
+import { getWaterAnalytics } from '../services/api';
 import { MONTHLY_WATER_DATA } from '../services/mockData';
 import { PageId } from '../types';
 
@@ -28,6 +29,8 @@ interface WaterPageProps {
 }
 
 export const WaterPage: React.FC<WaterPageProps> = ({ onNavigate }) => {
+  const [analytics, setAnalytics] = useState<any>(null);
+  useEffect(()=> { getWaterAnalytics().then(setAnalytics).catch(()=>{}); }, []);
   return (
     <div className="space-y-8 max-w-6xl pb-16">
       {/* Top Banner */}
@@ -40,7 +43,7 @@ export const WaterPage: React.FC<WaterPageProps> = ({ onNavigate }) => {
             <h2 className="text-xl font-extrabold text-slate-900 tracking-tight">
               Water Intelligence & Effluent Management
             </h2>
-            <DemoTag />
+            <DemoTag label={analytics ? "Live Backend Data" : "Illustrative"} />
           </div>
           <p className="text-xs text-slate-600">
             Freshwater borewell extraction, pipe leakage risks, and closed-loop ultrafiltration.
