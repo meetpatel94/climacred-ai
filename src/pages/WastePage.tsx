@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Trash2,
   Recycle,
@@ -17,6 +17,7 @@ import {
 import { MetricCard } from '../components/common/MetricCard';
 import { AIInsightCard } from '../components/common/AIInsightCard';
 import { DemoTag } from '../components/common/StatusBadge';
+import { getWasteAnalytics } from '../services/api';
 import { WASTE_COMPOSITION_DATA } from '../services/mockData';
 import { PageId } from '../types';
 
@@ -25,6 +26,8 @@ interface WastePageProps {
 }
 
 export const WastePage: React.FC<WastePageProps> = ({ onNavigate }) => {
+  const [analytics, setAnalytics] = useState<any>(null);
+  useEffect(()=> { getWasteAnalytics().then(setAnalytics).catch(()=>{}); }, []);
   return (
     <div className="space-y-8 max-w-6xl pb-16">
       {/* Top Banner */}
@@ -37,7 +40,7 @@ export const WastePage: React.FC<WastePageProps> = ({ onNavigate }) => {
             <h2 className="text-xl font-extrabold text-slate-900 tracking-tight">
               Waste & Circular Economy Intelligence
             </h2>
-            <DemoTag />
+            <DemoTag label={analytics ? "Live Backend Data" : "Illustrative"} />
           </div>
           <p className="text-xs text-slate-600">
             Material scrap monitoring, circular recovery, downcycling contracts, and landfill diversion.

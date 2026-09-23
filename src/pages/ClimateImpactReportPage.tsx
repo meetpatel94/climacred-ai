@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   FileText,
   Download,
@@ -10,6 +10,7 @@ import {
   Calendar,
 } from 'lucide-react';
 import { BusinessProfile, ClimateFingerprint, ImpactVerificationMetric } from '../types';
+import { getClimateReport, generateClimateReport } from '../services/api';
 import { DemoTag } from '../components/common/StatusBadge';
 
 interface ClimateImpactReportPageProps {
@@ -24,6 +25,21 @@ export const ClimateImpactReportPage: React.FC<ClimateImpactReportPageProps> = (
   verificationMetrics,
 }) => {
   const [downloadNotified, setDownloadNotified] = useState(false);
+  const [backendReport, setBackendReport] = useState<any>(null);
+  const [reportLoading, setReportLoading] = useState(false);
+  const [reportError, setReportError] = useState<string|null>(null);
+  useEffect(()=> {
+    setReportLoading(true);
+    getClimateReport().then(setBackendReport).catch(e=> setReportError(e.message)).finally(()=> setReportLoading(false));
+  }, []);
+  const handleGenerateBackendReport = async () => {
+    setReportLoading(true);
+    setReportError(null);
+    try {
+      const r = await generateClimateReport();
+      setBackendReport(r);
+    } catch(e:any){ setReportError(e.message);} finally { setReportLoading(false); }
+  };
   const [copiedLink, setCopiedLink] = useState(false);
 
   const handleDownload = () => {
@@ -51,7 +67,7 @@ export const ClimateImpactReportPage: React.FC<ClimateImpactReportPageProps> = (
             <h2 className="text-xl font-extrabold text-slate-900 tracking-tight">
               Executive Climate Transformation Report
             </h2>
-            <DemoTag label="Executive Dossier" />
+            <DemoTag label={backendReport ? `Live Report ${backendReport.report_id || backendReport.reportId}` : reportLoading ? "Loading live report..." : "Executive Dossier"} />
           </div>
           <p className="text-xs text-slate-600">
             Audit-grade summary report prepared for board review, bank green-credit applications, and supply chain audits.
@@ -65,6 +81,14 @@ export const ClimateImpactReportPage: React.FC<ClimateImpactReportPageProps> = (
           >
             {copiedLink ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Share2 className="w-3.5 h-3.5" />}
             <span>{copiedLink ? 'Link Copied' : 'Share Dossier'}</span>
+          </button>
+
+          <button
+            onClick={handleGenerateBackendReport}
+            disabled={reportLoading}
+            className="px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs shadow-xs disabled:opacity-50"
+          >
+            {reportLoading ? "Generating..." : "Regenerate Live Report"}
           </button>
 
           <button
@@ -103,14 +127,24 @@ export const ClimateImpactReportPage: React.FC<ClimateImpactReportPageProps> = (
           </div>
 
           <div className="text-left sm:text-right space-y-0.5 text-xs text-slate-600">
-            <p className="font-mono text-slate-900 font-bold">Report ID: CC-2026-TX-8492</p>
+            <p className="font-mono text-slate-900 font-bold">Report ID: {backendReport?.report_id || backendReport?.reportId || "CC-2026-TX-8492"}</p>
             <p className="flex items-center gap-1 sm:justify-end">
               <Calendar className="w-3.5 h-3.5 text-slate-400" />
-              <span>Assessment Date: March 2026</span>
+              <span>Assessment Date: {backendReport ? new Date(backendReport.generated_at || backendReport.generatedAt).toLocaleDateString() : "March 2026"}</span>
             </p>
             <p className="text-[11px] text-emerald-700 font-semibold">Standard: SME ESG Decarbonization v1.0</p>
           </div>
         </div>
+
+        {reportError && <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs">{reportError}</div>}
+        {backendReport && (
+          <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-xs space-y-2">
+            <p className="font-bold text-emerald-800">Live Backend Report Metadata</p>
+            <p className="text-slate-700">Generated: {backendReport.generated_at || backendReport.generatedAt} • Version: {backendReport.calculation_version || backendReport.calculationVersion} • Data Period: {backendReport.data_period || backendReport.dataPeriod}</p>
+            <p className="text-slate-700">Data Quality: {backendReport.data_quality?.level || backendReport.dataQuality?.level} ({backendReport.data_quality?.completeness_percent || backendReport.dataQuality?.completeness_percent}% complete)</p>
+            <details className="pt-2"><summary className="font-semibold cursor-pointer">Assumptions & Methodology</summary><ul className="list-disc pl-4 mt-1 space-y-1">{(backendReport.assumptions||[]).map((a:string,i:number)=><li key={i}>{a}</li>)}</ul></details>
+          </div>
+        )}
 
         {/* Section 1: Business Identification & Executive Summary */}
         <div className="space-y-4">

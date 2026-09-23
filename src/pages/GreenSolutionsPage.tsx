@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Lightbulb,
   Search,
@@ -12,17 +12,19 @@ import {
   TrendingDown,
   Clock,
   ShieldAlert,
+  Loader2,
 } from 'lucide-react';
 import { GreenSolution, PageId } from '../types';
 import { GREEN_SOLUTIONS_LIBRARY } from '../services/mockData';
 import { DemoTag } from '../components/common/StatusBadge';
+import { getGreenSolutions, getRecommendedSolutions } from '../services/api';
 
 interface GreenSolutionsPageProps {
   onNavigate: (page: PageId) => void;
   onSelectSolutionForSimulator?: (solutionId: string) => void;
 }
 
-const CATEGORIES = ['All', 'Energy', 'Water', 'Waste', 'Mobility', 'Operations'];
+const CATEGORIES = ['All', 'Energy', 'Water', 'Waste', 'Mobility', 'Operations', 'Materials'];
 
 const CATEGORY_ICONS: Record<string, React.ElementType> = {
   Energy: Zap,
@@ -40,8 +42,42 @@ export const GreenSolutionsPage: React.FC<GreenSolutionsPageProps> = ({
   const [activeCategory, setActiveCategory] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedModalSolution, setSelectedModalSolution] = useState<GreenSolution | null>(null);
+  const [solutions, setSolutions] = useState<GreenSolution[]>(GREEN_SOLUTIONS_LIBRARY);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [recommendedIds, setRecommendedIds] = useState<Set<string>>(new Set());
 
-  const filteredSolutions = GREEN_SOLUTIONS_LIBRARY.filter((s) => {
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      setLoading(true);
+      setError(null);
+      try {
+        const fetched = await getGreenSolutions(activeCategory);
+        if (!cancelled) {
+          setSolutions(fetched.length ? fetched : GREEN_SOLUTIONS_LIBRARY);
+        }
+        // Also fetch recommendations to highlight personalized top picks
+        try {
+          const recs = await getRecommendedSolutions(5);
+          if (!cancelled && recs.length) {
+            setRecommendedIds(new Set(recs.map((r: any) => r.solution_id || r.solution?.id)));
+          }
+        } catch {}
+      } catch (e: any) {
+        if (!cancelled) {
+          setError(e.message || 'Failed to load solutions catalog');
+          // Keep mock fallback already set
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+    load();
+    return () => { cancelled = true; };
+  }, [activeCategory]);
+
+  const filteredSolutions = solutions.filter((s) => {
     const matchesCategory = activeCategory === 'All' || s.category.toLowerCase() === activeCategory.toLowerCase();
     const matchesSearch =
       s.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -62,11 +98,12 @@ export const GreenSolutionsPage: React.FC<GreenSolutionsPageProps> = ({
             <h2 className="text-xl font-extrabold text-slate-900 tracking-tight">
               Green Intervention Library & Solutions Catalog
             </h2>
-            <DemoTag label="Illustrative Phase 1 Catalog" />
+            <DemoTag label={loading ? "Loading live catalog..." : "Live Backend Catalog"} />
           </div>
           <p className="text-xs text-slate-600">
-            A curated database of vetted hardware, clean technology, and operational retrofits designed for SME payback periods under 4 years.
+            A curated database of vetted hardware, clean technology, and operational retrofits designed for SME payback periods under 4 years. <span className="text-emerald-700 font-semibold">{recommendedIds.size ? "Personalized recommendations highlighted." : ""}</span>
           </p>
+          {error && <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1 mt-1">{error} – showing cached data.</p>}
         </div>
 
         <button
@@ -110,15 +147,18 @@ export const GreenSolutionsPage: React.FC<GreenSolutionsPageProps> = ({
         </div>
       </div>
 
+      {loading && <div className="flex items-center gap-2 text-xs text-slate-600"><Loader2 className="w-4 h-4 animate-spin" /> Loading solutions from backend...</div>}
+
       {/* Solutions Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
         {filteredSolutions.map((sol) => {
           const Icon = CATEGORY_ICONS[sol.category] || Layers;
+          const isRecommended = recommendedIds.has(sol.id);
 
           return (
             <div
               key={sol.id}
-              className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-xs hover:shadow-md transition-all flex flex-col justify-between group space-y-4"
+              className={`bg-white border rounded-2xl p-5 shadow-xs hover:shadow-md transition-all flex flex-col justify-between group space-y-4 ${isRecommended ? 'border-emerald-300 ring-1 ring-emerald-200' : 'border-slate-200/90'}`}
             >
               <div className="space-y-3">
                 {/* Header */}
@@ -138,6 +178,11 @@ export const GreenSolutionsPage: React.FC<GreenSolutionsPageProps> = ({
                     </span>
                   )}
                 </div>
+                {isRecommended && (
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200 inline-flex items-center gap-1">
+                    <Sparkles className="w-3 h-3" /> Personalized Top Pick
+                  </span>
+                )}
 
                 {/* Title & Short Description */}
                 <div>
@@ -212,6 +257,13 @@ export const GreenSolutionsPage: React.FC<GreenSolutionsPageProps> = ({
         })}
       </div>
 
+      {filteredSolutions.length === 0 && (
+        <div className="text-center py-12 bg-white border border-slate-200 rounded-2xl">
+          <p className="text-sm font-semibold text-slate-700">No solutions match your filter.</p>
+          <p className="text-xs text-slate-600">Try adjusting category or search term.</p>
+        </div>
+      )}
+
       {/* Detail Modal */}
       {selectedModalSolution && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
@@ -281,7 +333,7 @@ export const GreenSolutionsPage: React.FC<GreenSolutionsPageProps> = ({
             <div className="p-3 rounded-xl bg-amber-50/80 border border-amber-200 text-xs text-amber-900 flex items-start gap-2">
               <ShieldAlert className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
               <span>
-                All pricing and reduction metrics are illustrative Phase 1 demo estimates. Formal quotes and equipment specs will be verified in Phase 2 vendor bidding.
+                All pricing and reduction metrics are backend-calculated estimates using configurable assumptions. Formal quotes require site audit verification. Not a guaranteed saving.
               </span>
             </div>
 
