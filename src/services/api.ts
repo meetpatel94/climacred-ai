@@ -10,6 +10,7 @@ import {
   TransformationPhaseItem,
   ImpactVerificationMetric,
   UserPreferences,
+  AIDashboardInsightsResponse,
 } from '../types';
 
 import {
@@ -41,17 +42,18 @@ const getBase = () => API_BASE_URL.replace(/\/$/, '');
 let cachedProfile: BusinessProfile | null = null;
 let cachedAssessment: ClimateAssessmentData | null = null;
 
-async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
+async function apiFetch<T>(path: string, options: RequestInit & { timeoutMs?: number } = {}): Promise<T> {
+  const { timeoutMs = API_TIMEOUT_MS, ...requestOptions } = options;
   const url = `${getBase()}${path}`;
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const res = await fetch(url, {
-      ...options,
+      ...requestOptions,
       signal: controller.signal,
       headers: {
         'Content-Type': 'application/json',
-        ...(options.headers || {}),
+        ...(requestOptions.headers || {}),
       },
     });
     clearTimeout(timeout);
@@ -80,7 +82,7 @@ async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> 
   } catch (e: any) {
     clearTimeout(timeout);
     if (e.name === 'AbortError') {
-      const err: any = new Error(`Request timeout after ${API_TIMEOUT_MS}ms to ${path}`);
+      const err: any = new Error(`Request timeout after ${timeoutMs}ms to ${path}`);
       err.status = 0;
       throw err;
     }
@@ -520,6 +522,20 @@ export async function generateClimateReport(): Promise<any> {
   } catch (err: any) {
     throw new Error(err.message || 'Failed to generate report');
   }
+}
+
+// ---------------------------------------------------------------------------
+// Gemini AI dashboard intelligence (Phase 3)
+// The Gemini API key lives only in the backend environment; the browser never
+// sees it. The backend returns a calculated insight when Gemini is unavailable.
+// ---------------------------------------------------------------------------
+export const AI_INSIGHT_TIMEOUT_MS = 30000;
+
+export async function getAIDashboardInsights(refresh = false): Promise<AIDashboardInsightsResponse> {
+  const query = refresh ? '?refresh=true' : '';
+  return await apiFetch<AIDashboardInsightsResponse>(`/api/ai/dashboard-insights${query}`, {
+    timeoutMs: AI_INSIGHT_TIMEOUT_MS,
+  });
 }
 
 // ---------------------------------------------------------------------------

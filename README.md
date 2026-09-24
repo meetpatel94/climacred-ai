@@ -1,4 +1,4 @@
-# ClimaCred AI – Phase 2 Full-Stack Implementation
+# ClimaCred AI – Phase 2 Full-Stack Implementation + Gemini AI Layer
 
 **Team:** TerraMind  
 **Stack:** React + TypeScript + Vite + Tailwind + Framer Motion + Recharts + Lucide | FastAPI + MongoDB (PyMongo/Mongomock) + Pandas + NumPy + Scikit-learn
@@ -89,9 +89,22 @@ DIESEL_EMISSION_FACTOR_KG_PER_LITRE=2.68
 PETROL_EMISSION_FACTOR_KG_PER_LITRE=2.31
 NATURAL_GAS_EMISSION_FACTOR_KG_PER_KG=2.75
 CALCULATION_VERSION=v1.0.0
+
+# --- Gemini AI intelligence layer (Phase 3) ---
+# 👉 Put your Google AI Studio key here (this is the ONLY value you must add).
+#    backend/.env  →  GEMINI_API_KEY=AIza...your-key...
+#    Get a key: https://aistudio.google.com/app/apikey
+GEMINI_API_KEY=
+GEMINI_MODEL=gemini-2.5-flash
+# Optional overrides
+GEMINI_API_BASE=https://generativelanguage.googleapis.com/v1beta
+GEMINI_TIMEOUT_SECONDS=25
+AI_INSIGHT_CACHE_MINUTES=180
 ```
 
 > Never hardcode credentials. Provide `.env.example`. All secrets via env.
+> `GEMINI_API_KEY` is read **only by the FastAPI backend** — it is never sent to the browser, never returned
+> by any endpoint, never stored in MongoDB and never committed (`.env` is git-ignored).
 
 ### Frontend Setup
 
@@ -151,8 +164,52 @@ Swagger at `http://localhost:8000/docs`
 | GET/POST | `/api/impact` | Get / submit impact (`before`, `after`) |
 | GET | `/api/impact/metrics` | Frontend-shaped metrics |
 | GET/POST | `/api/reports/climate` | Get / generate report |
+| GET | `/api/ai/dashboard-insights` | Gemini AI climate insight for the dashboard (auto-loaded, cached, `?refresh=true` to regenerate) |
+| GET | `/api/ai/status` | AI layer status (`gemini_configured`, model, cache TTL) |
 
 All also available under `/api/v1/...` for compatibility.
+
+---
+
+## Gemini AI Intelligence Layer (Phase 3)
+
+The dashboard automatically asks the backend for an AI interpretation of the user's **already stored** data.
+The user never pastes data, uploads reports or opens Gemini manually.
+
+**Flow**
+
+```
+Dashboard mount
+  → GET /api/ai/dashboard-insights
+      → ai_insight_service.build_context()   (reuses the existing Phase 2 services:
+                                              profile, assessment, fingerprint, analytics,
+                                              recommendations, scenario engine, plan, impact)
+      → data_signature(context)              (SHA-256 of the stored data state)
+      → cache hit?  → return cached insight (no Gemini call)
+      → cache miss? → Gemini generateContent → structured JSON → numeric audit → cache
+      → Gemini missing/failing? → deterministic "calculated insight" + status notice
+```
+
+- **Endpoint:** `GET /api/ai/dashboard-insights` (also `/api/v1/ai/dashboard-insights`, `?refresh=true` bypasses the cache)
+- **Service:** `backend/app/services/ai_insight_service.py` · **Route:** `backend/app/api/routes/ai.py`
+- **Model:** `GEMINI_MODEL` (default `gemini-2.5-flash`) via the official REST API
+  `https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent` with the `x-goog-api-key` header.
+- **Response schema:** `summary`, `recent_changes[]`, `key_risk`, `focus_now`, `priority_action`, `forecast`,
+  `expected_impact`, `confidence`, `details{data_used[], reasoning_summary, historical_comparison, main_risks[],
+  recommended_actions[], related_recommendations[], expected_impact_detail, confidence_note, assumptions[],
+  number_audit{verified, unsupported_values[]}}` plus `calculated` (Phase 2 source-of-truth values),
+  `history`, `status`, `source` (`gemini` | `calculated`), `cached`, `disclaimer`.
+- **Gemini never invents numbers:** the prompt is restricted to the calculated context and every numeric token
+  returned is audited against the context (`number_audit`). Unmatched figures are flagged in the UI.
+- **Forecast guardrail:** without earlier snapshots the forecast is forced to
+  `"Insufficient historical data for a reliable forecast."`
+- **Graceful degradation:** missing key / quota / timeout / bad JSON ⇒ `status: "unavailable" | "error"`,
+  `source: "calculated"` and the notice *"AI insights unavailable — showing calculated insights."* —
+  the dashboard and every Phase 2 endpoint keep working.
+- **Caching:** insights are cached per data signature (default 180 min, `ai_insights` collection) and the
+  browser keeps the last payload in `sessionStorage`; Gemini is only called again when stored data changes.
+- **Dark mode:** navbar toggle (end of the header) with `localStorage` persistence (`climacred_theme`) and a
+  class-based Tailwind v4 dark variant; the existing light palette is remapped in `src/index.css`.
 
 ---
 
@@ -301,7 +358,13 @@ Creates:
 
 ```bash
 cd backend
-python -m pytest tests/test_api.py -v
+python -m pytest tests -v          # 56 tests (37 Phase 2 + 19 AI layer), Gemini mocked - no network needed
+
+cd ..
+npx tsc --noEmit                   # type check
+npm run build                      # production single-file build
+npm run preview                    # then, with the backend running:
+node frontend_smoke_test.cjs       # 21/21 page click-through + console-error check
 ```
 
 Covers:
@@ -317,8 +380,11 @@ Covers:
 - Impact (before/after calc, missing data, terminology)
 - Report (distinct data types, metadata)
 - Anomaly/forecast insufficient data messages
+- AI layer (`tests/test_ai.py`): missing key fallback, Gemini success, prompt contains stored data only,
+  numeric audit (unsupported values flagged), forecast forced when no history, quota/transport/JSON failures,
+  cache prevents repeated Gemini calls, `?refresh=true`, history included when snapshots exist
 
-37 tests, all passing.
+56 tests, all passing.
 
 ---
 

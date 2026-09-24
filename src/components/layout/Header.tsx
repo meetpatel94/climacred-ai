@@ -1,6 +1,7 @@
 import React from 'react';
-import { Menu, Bell, Download, Sparkles } from 'lucide-react';
+import { Menu, Bell, Download, Sparkles, Moon, Sun } from 'lucide-react';
 import { PageId } from '../../types';
+import { useTheme } from '../../utils/theme';
 
 interface HeaderProps {
   currentPage: PageId;
@@ -88,6 +89,9 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenMobile,
   onNavigate,
 }) => {
+  const { theme, toggleTheme } = useTheme();
+  const isDark = theme === 'dark';
+
   const meta = PAGE_METADATA[currentPage] || {
     title: 'ClimaCred AI',
     description: 'Climate Transformation Intelligence',
@@ -156,6 +160,18 @@ export const Header: React.FC<HeaderProps> = ({
           >
             <Bell className="w-4 h-4" />
             <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-emerald-500 ring-2 ring-white" />
+          </button>
+
+          {/* Dark mode toggle - keeps the existing navbar layout */}
+          <button
+            onClick={toggleTheme}
+            className="p-2 rounded-xl text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-colors"
+            title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+            aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+            aria-pressed={isDark}
+            data-testid="theme-toggle"
+          >
+            {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
           </button>
         </div>
       </div>

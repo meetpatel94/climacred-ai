@@ -25,6 +25,7 @@ import {
 import { MetricCard } from '../components/common/MetricCard';
 import { ImpactBadge, DemoTag } from '../components/common/StatusBadge';
 import { AIInsightCard } from '../components/common/AIInsightCard';
+import { AIClimateIntelligence } from '../components/common/AIClimateIntelligence';
 import { MONTHLY_ENERGY_DATA, MONTHLY_WATER_DATA } from '../services/mockData';
 import { PageId } from '../types';
 import { getClimateFingerprint, getClimateAssessment, getBusinessProfile } from '../services/api';
@@ -34,11 +35,20 @@ interface DashboardPageProps {
   onNavigate: (page: PageId) => void;
 }
 
+// Local-time greeting shown at the top of the dashboard
+const getGreeting = (): string => {
+  const hour = new Date().getHours();
+  if (hour < 12) return 'Good Morning';
+  if (hour < 17) return 'Good Afternoon';
+  return 'Good Evening';
+};
+
 export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
   const [fingerprint, setFingerprint] = useState<ClimateFingerprint | null>(null);
   const [assessment, setAssessment] = useState<ClimateAssessmentData | null>(null);
   const [profile, setProfile] = useState<BusinessProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const greeting = getGreeting();
 
   useEffect(() => {
     let cancelled = false;
@@ -108,7 +118,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
           </div>
 
           <h2 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight">
-            {businessName}
+            {greeting}, {businessName}
           </h2>
           <p className="text-xs sm:text-sm text-slate-600 max-w-2xl">
             {businessLocation} • {employees} Employees • {facility.toLocaleString()} sq.ft facility • Climate Readiness: {overallScore}/100
@@ -220,6 +230,9 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
           helperText={`${vehicleCount} active diesel delivery vans`}
         />
       </div>
+
+      {/* AI Climate Intelligence - auto-loads from the latest stored data */}
+      <AIClimateIntelligence onNavigate={onNavigate} />
 
       {/* Top Climate Priorities & Next Step Card */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">

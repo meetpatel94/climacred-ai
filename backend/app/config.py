@@ -13,6 +13,13 @@ class Settings(BaseSettings):
     PETROL_EMISSION_FACTOR_KG_PER_LITRE: float = 2.31
     NATURAL_GAS_EMISSION_FACTOR_KG_PER_KG: float = 2.75
     CALCULATION_VERSION: str = "v1.0.0"
+    # --- Gemini AI intelligence layer (Phase 3) ---
+    # Only the API key needs to be provided in the environment; everything else has a safe default.
+    GEMINI_API_KEY: str = ""
+    GEMINI_MODEL: str = "gemini-2.5-flash"
+    GEMINI_API_BASE: str = "https://generativelanguage.googleapis.com/v1beta"
+    GEMINI_TIMEOUT_SECONDS: int = 25
+    AI_INSIGHT_CACHE_MINUTES: int = 180
     # Scoring weights configurable
     WEIGHT_ENERGY: float = 0.20
     WEIGHT_WATER: float = 0.20
