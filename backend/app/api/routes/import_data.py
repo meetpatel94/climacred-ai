@@ -112,10 +112,18 @@ async def preview_import(files: List[UploadFile] = File(..., description="One or
     """
     try:
         uploads = await _read_uploads(files)
+        # Ids from business_profiles in this same request count as known, so the
+        # other files in the batch can be validated before anything is stored.
+        known_ids = import_service.provisional_business_ids(uploads)
         results: List[Dict[str, Any]] = []
         for name, content in uploads:
-            summary = import_service.import_table(name, content, persist=False)
+            summary = import_service.import_table(
+                name, content, persist=False, extra_business_ids=known_ids,
+            )
             summary["stored"] = False
+            # Preview never stores, so a fully valid file is "valid", not "imported".
+            if summary.get("validation", {}).get("valid"):
+                summary["status"] = "valid"
             results.append(summary)
         return {
             "files_received": len(results),

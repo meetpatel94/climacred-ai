@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useImportedDataRevision } from '../utils/dataRevision';
 import {
   FileText,
   Download,
@@ -31,6 +32,7 @@ export const ClimateImpactReportPage: React.FC<ClimateImpactReportPageProps> = (
   hasAssessment = false,
   onNavigate,
 }) => {
+  const importedRevision = useImportedDataRevision();
   const [downloadNotified, setDownloadNotified] = useState(false);
   const [backendReport, setBackendReport] = useState<any>(null);
   const [reportLoading, setReportLoading] = useState(false);

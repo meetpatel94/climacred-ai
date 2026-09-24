@@ -92,6 +92,11 @@ class RowError(ValueError):
 class DatasetError(ValueError):
     """The file itself is unusable (bad extension, no headers, unknown dataset...)."""
 
+    def __init__(self, message: str, *, error_code: str = "dataset_error", **extra: Any) -> None:
+        super().__init__(message)
+        self.error_code = error_code
+        self.extra = extra
+
 
 # ---------------------------------------------------------------------------
 # Dataset registry
@@ -691,39 +696,142 @@ def _extension(filename: str) -> str:
     return filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
 
 
+def _filename_stem(filename: str) -> str:
+    """Normalise a filename to a dataset key stem.
+
+    Lowercase, strip the extension and any ``__sheet`` suffix, and treat hyphens
+    and spaces as underscores. ``Business Profiles.xlsx`` and
+    ``business-profiles.csv`` both become ``business_profiles``.
+    """
+    name = str(filename or "").replace("\\", "/").rsplit("/", 1)[-1]
+    stem = name.rsplit(".", 1)[0].lower() if "." in name else name.lower()
+    stem = re.sub(r"__.*$", "", stem)
+    stem = stem.replace("-", " ").replace("_", " ")
+    stem = re.sub(r"[^a-z0-9]+", "_", stem).strip("_")
+    return stem
+
+
+def _column_aliases() -> dict:
+    """Header variants that are not already a known column under case/spacing fold."""
+    return {
+        "company_name": "business_name",
+        "company": "business_name",
+        "employees": "employee_count",
+        "staff_count": "employee_count",
+        "businessid": "business_id",
+        "biz_id": "business_id",
+    }
+
+
+def _known_import_columns() -> list:
+    columns = []
+    for dataset in DATASETS.values():
+        columns.extend(dataset.fields.keys())
+        if dataset.payload_column:
+            columns.append(dataset.payload_column)
+    return columns
+
+
+def _canonicalize_header(value: Any) -> str:
+    text_value = re.sub(r"\s+", " ", str(value or "")).strip()
+    if not text_value or text_value.lower().startswith("unnamed"):
+        return ""
+    known = {column.lower(): column for column in _known_import_columns()}
+    if text_value in set(known.values()):
+        return text_value
+    lowered = text_value.lower().replace(" ", "_").replace("-", "_")
+    lowered = re.sub(r"_+", "_", lowered).strip("_")
+    if lowered in known:
+        return known[lowered]
+    return _column_aliases().get(lowered, text_value)
+
+
 def validate_extension(filename: str) -> str:
     ext = _extension(filename)
     if f".{ext}" not in SUPPORTED_EXTENSIONS:
         raise DatasetError(
             f"Unsupported file type '.{ext or filename}'. Supported formats: "
-            + ", ".join(SUPPORTED_EXTENSIONS)
+            + ", ".join(SUPPORTED_EXTENSIONS),
+            error_code="unsupported_extension",
         )
     return ext
 
 
-def _read_tables(content: bytes, ext: str) -> List[Tuple[str, pd.DataFrame]]:
-    """Read every sheet (xlsx/xls) or the single table (csv) of an upload."""
-    buffer = io.BytesIO(content)
+def _read_tables(content: bytes, ext: str):
+    """Read every sheet (xlsx/xls) or the single table (csv) of an upload.
+
+    Returns ``(tables, sheet_reports)``. The first worksheet is never assumed to
+    be the dataset: empty sheets are reported and skipped, and a hidden sheet is
+    used only when the workbook has no visible table.
+    """
+    from app.services.workbook_parser import WorkbookParseError, read_xlsx
+
     try:
         if ext == "csv":
-            # utf-8-sig strips the Excel BOM; latin-1 is a last-resort fallback so a
-            # stray non-UTF8 byte never turns a readable file into a hard failure.
+            frame = None
             for encoding in ("utf-8-sig", "latin-1"):
                 try:
                     frame = pd.read_csv(io.BytesIO(content), dtype=object, encoding=encoding, keep_default_na=False)
                     break
                 except UnicodeDecodeError:
                     continue
-            else:  # pragma: no cover - latin-1 never raises
-                raise DatasetError("Could not decode the CSV file as text.")
-            return [("csv", frame)]
-        engine = "openpyxl" if ext == "xlsx" else "xlrd"
-        sheets = pd.read_excel(buffer, sheet_name=None, dtype=object, engine=engine)
-        return [(str(name), frame) for name, frame in sheets.items()]
+            if frame is None:
+                raise DatasetError("Could not decode the CSV file as text.", error_code="parse_error")
+            frame = _normalize_columns(frame)
+            report = _sheet_report("csv", frame)
+            return [("csv", frame)], [report]
+        if ext == "xlsx":
+            try:
+                tables, reports = read_xlsx(
+                    content,
+                    known_columns=_known_import_columns(),
+                    aliases=_column_aliases(),
+                )
+            except WorkbookParseError as exc:
+                raise DatasetError(str(exc), error_code=exc.error_code, **exc.extra) from None
+            if not tables:
+                raise DatasetError(
+                    "The workbook has no tabular data. Empty, hidden-only, or documentation sheets were ignored.",
+                    error_code="empty_workbook",
+                    available_sheets=reports,
+                    detected_columns=[],
+                )
+            return tables, reports
+        engine = "xlrd"
+        sheets = pd.read_excel(io.BytesIO(content), sheet_name=None, dtype=object, engine=engine)
+        tables = []
+        reports = []
+        for name, frame in sheets.items():
+            frame = _normalize_columns(frame)
+            reports.append(_sheet_report(str(name), frame))
+            if not (frame.empty and len(frame.columns) == 0):
+                tables.append((str(name), frame))
+        if not tables:
+            raise DatasetError(
+                "The workbook has no tabular data.",
+                error_code="empty_workbook",
+                available_sheets=reports,
+            )
+        return tables, reports
     except DatasetError:
         raise
     except Exception as exc:
-        raise DatasetError(f"Could not parse the file ({type(exc).__name__}: {exc}).") from None
+        raise DatasetError(
+            f"Could not parse the file ({type(exc).__name__}: {exc}).",
+            error_code="parse_error",
+        ) from None
+
+
+def _sheet_report(name: str, frame: pd.DataFrame, *, role: str = "data") -> dict:
+    columns = [str(column) for column in frame.columns]
+    return {
+        "name": name,
+        "state": "visible",
+        "empty": not columns and frame.empty,
+        "rows": 0 if frame is None else int(len(frame)),
+        "columns": columns,
+        "role": role,
+    }
 
 
 def _normalize_header(value: Any) -> str:
@@ -732,9 +840,9 @@ def _normalize_header(value: Any) -> str:
 
 def _normalize_columns(frame: pd.DataFrame) -> pd.DataFrame:
     frame = frame.copy()
-    frame.columns = [_normalize_header(c) for c in frame.columns]
+    frame.columns = [_canonicalize_header(c) for c in frame.columns]
     # Drop fully unnamed / empty columns (Excel pads tables with them).
-    frame = frame.loc[:, [c for c in frame.columns if c and not c.lower().startswith("unnamed")]]
+    frame = frame.loc[:, [c for c in frame.columns if c and not str(c).lower().startswith("unnamed")]]
     return frame
 
 
@@ -760,15 +868,15 @@ def _header_score(dataset: Dataset, headers: Sequence[str]) -> Tuple[int, List[s
 
 
 def _filename_score(dataset: Dataset, filename: str) -> int:
-    stem = filename.rsplit(".", 1)[0].lower()
-    stem = re.sub(r"__.*$", "", stem)  # "business_profiles__api_payload_sheet" -> "business_profiles"
-    if stem == dataset.key:
+    stem = _filename_stem(filename)
+    if stem == dataset.key or stem == _filename_stem(dataset.key):
         return 100
     score = 0
     for hint in dataset.filename_hints:
-        if hint == stem:
+        hint_stem = _filename_stem(hint)
+        if hint_stem == stem:
             score = max(score, 100)
-        elif hint in stem:
+        elif hint_stem and hint_stem in stem:
             score = max(score, 40)
     return score
 
@@ -791,6 +899,7 @@ def detect_dataset(filename: str, headers: Sequence[str]) -> Tuple[Optional[Data
     if not ranked:
         return None, {
             "reason": "unknown_dataset",
+            "error_code": "unknown_dataset",
             "message": (
                 "Unknown dataset type. The column headers do not match any ClimaCred dataset "
                 f"(found: {', '.join(normalized[:12])}{'...' if len(normalized) > 12 else ''})."
@@ -799,7 +908,8 @@ def detect_dataset(filename: str, headers: Sequence[str]) -> Tuple[Optional[Data
         }
     best_score, best, _missing = ranked[0]
     if best_score < 25:  # pragma: no cover - defensive
-        return None, {"reason": "low_confidence", "message": "Could not identify the dataset with confidence.",
+        return None, {"reason": "low_confidence", "error_code": "unknown_dataset",
+                      "message": "Could not identify the dataset with confidence.",
                       "headers": normalized}
     return best, {
         "reason": "matched",
@@ -827,13 +937,22 @@ def _payload_only_dataset(headers: Sequence[str]) -> Optional[Dataset]:
 
 
 def pick_table(filename: str, tables: Sequence[Tuple[str, pd.DataFrame]]) -> Tuple[str, pd.DataFrame, Dataset, Dict[str, Any]]:
-    """Choose the sheet that actually holds the dataset (workbooks carry extra sheets)."""
+    """Choose the sheet that actually holds the dataset (workbooks carry extra sheets).
+
+    A JSON / API-payload companion sheet is never selected when a real tabular
+    sheet is present. If several sheets each match a different dataset and the
+    filename does not identify one of them, the file is rejected with the
+    candidate list instead of silently importing the wrong sheet.
+    """
     evaluated: List[Tuple[int, str, pd.DataFrame, Dataset, Dict[str, Any]]] = []
     unknown: Optional[Dict[str, Any]] = None
+    detected_columns: List[str] = []
     for sheet_name, frame in tables:
         frame = _normalize_columns(frame)
         if frame.empty and len(frame.columns) == 0:
             continue
+        if not detected_columns:
+            detected_columns = [str(column) for column in frame.columns]
         dataset, info = detect_dataset(filename, list(frame.columns))
         if dataset is None:
             parent = _payload_only_dataset(list(frame.columns))
@@ -845,11 +964,58 @@ def pick_table(filename: str, tables: Sequence[Tuple[str, pd.DataFrame]]) -> Tup
             continue
         evaluated.append((int(info.get("confidence") or 0), sheet_name, frame, dataset, info))
     if not evaluated:
-        raise DatasetError((unknown or {}).get("message") or "No readable data sheet found in the file.")
-    evaluated.sort(key=lambda item: item[0], reverse=True)
-    _score, sheet_name, frame, dataset, info = evaluated[0]
+        headers = (unknown or {}).get("headers") or detected_columns
+        raise DatasetError(
+            (unknown or {}).get("message") or "No readable data sheet found in the file.",
+            error_code=(unknown or {}).get("error_code") or "unknown_dataset",
+            detected_columns=list(headers),
+        )
+    data_sheets = [item for item in evaluated if item[0] >= 0]
+    payload_sheets = [item for item in evaluated if item[0] < 0]
+    if not data_sheets:
+        _score, sheet_name, frame, dataset, info = payload_sheets[0]
+        info = {**info, "candidates": _candidate_views(evaluated)}
+        return sheet_name, frame, dataset, info
+
+    data_sheets.sort(key=lambda item: item[0], reverse=True)
+    distinct = {}
+    for item in data_sheets:
+        distinct.setdefault(item[3].key, item)
+    if len(distinct) > 1:
+        winner = data_sheets[0]
+        filename_points = _filename_score(winner[3], filename)
+        runner_up = next(item for item in data_sheets if item[3].key != winner[3].key)
+        runner_points = _filename_score(runner_up[3], filename)
+        if filename_points < 100 or filename_points <= runner_points:
+            raise DatasetError(
+                "This workbook has more than one dataset sheet ("
+                + ", ".join(f"{item[1]} → {item[3].key}" for item in data_sheets)
+                + "). Split them or name the file after the dataset to import.",
+                error_code="multiple_datasets",
+                detected_columns=detected_columns,
+                candidates=_candidate_views(data_sheets),
+            )
+    _score, sheet_name, frame, dataset, info = data_sheets[0]
+    others = [
+        {"sheet": item[1], "dataset": item[3].key, "rows": int(len(item[2])), "confidence": item[0]}
+        for item in data_sheets[1:]
+    ]
+    info = {**info, "candidates": _candidate_views(evaluated), "other_data_sheets": others}
     return sheet_name, frame, dataset, info
 
+
+def _candidate_views(evaluated: Sequence[Tuple[int, str, pd.DataFrame, Dataset, Dict[str, Any]]]) -> List[Dict[str, Any]]:
+    views = []
+    for score, sheet_name, frame, dataset, info in evaluated:
+        views.append({
+            "sheet": sheet_name,
+            "dataset": dataset.key,
+            "rows": int(len(frame)),
+            "confidence": score,
+            "payload_only": bool(info.get("payload_only")),
+            "columns": [str(column) for column in frame.columns],
+        })
+    return views
 
 def collect_companion_payloads(
     tables: Sequence[Tuple[str, pd.DataFrame]],
@@ -1002,7 +1168,7 @@ def _coerce_date(column: str, raw: Any) -> str:
         raise ValueError(f"{column} must be a valid date (got '{raw}').") from None
 
 
-def store_payloads_only(dataset: Dataset, frame: pd.DataFrame, import_id: str, *, persist: bool = True) -> Tuple[int, List[Dict[str, Any]]]:
+def store_payloads_only(dataset: Dataset, frame: pd.DataFrame, import_id: str, *, persist: bool = True, extra_business_ids: Optional[Iterable[str]] = None) -> Tuple[int, List[Dict[str, Any]]]:
     """Attach API-ready payloads from a standalone sheet/file to their business rows.
 
     Returns (rows stored, validation errors). Nothing is invented: a payload that is
@@ -1010,6 +1176,8 @@ def store_payloads_only(dataset: Dataset, frame: pd.DataFrame, import_id: str, *
     """
     col = get_collection(dataset.collection)
     known = set(known_business_ids())
+    if extra_business_ids:
+        known.update(str(item) for item in extra_business_ids if item)
     stored = 0
     errors: List[Dict[str, Any]] = []
     for position, raw_row in enumerate(frame.to_dict(orient="records"), start=2):
@@ -1104,6 +1272,12 @@ def activate_business(business_id: str) -> Dict[str, Any]:
         raise ValueError(f"Business '{business_id}' has not been imported yet.")
     if not doc.get("business_name"):
         raise ValueError(f"Business '{business_id}' has no business name stored.")
+    # Park the previously active profile (user_id=None) BEFORE the upsert. The
+    # profile service updates the single user_id="default" document in place, so
+    # without this step activating B003 would overwrite B001.
+    previous = col.find_one({"user_id": DEFAULT_USER_ID, "business_id": {"$ne": business_id}})
+    if previous:
+        col.update_one({"_id": previous["_id"]}, {"$set": {"user_id": None}})
     excluded = ("_id", "user_id", "created_at", "updated_at", "imported_at", "dataset_type", "_source_row")
     payload = {key: value for key, value in doc.items() if key not in excluded}
     profile = create_or_update_profile(payload, DEFAULT_USER_ID)
@@ -1115,7 +1289,7 @@ def activate_business(business_id: str) -> Dict[str, Any]:
 # ---------------------------------------------------------------------------
 # Row validation
 # ---------------------------------------------------------------------------
-def validate_rows(dataset: Dataset, frame: pd.DataFrame) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+def validate_rows(dataset: Dataset, frame: pd.DataFrame, *, extra_business_ids: Optional[Iterable[str]] = None) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
     """Validate + coerce every row. Returns (valid rows, validation errors).
 
     Nothing is dropped silently: every rejected row produces one entry in the
@@ -1124,6 +1298,8 @@ def validate_rows(dataset: Dataset, frame: pd.DataFrame) -> Tuple[List[Dict[str,
     valid: List[Dict[str, Any]] = []
     errors: List[Dict[str, Any]] = []
     known_ids = set(known_business_ids()) if dataset.business_scoped else set()
+    if extra_business_ids:
+        known_ids.update(str(item) for item in extra_business_ids if item)
     # business_profiles defines the registry, so it validates against itself.
     if dataset.key == "business_profiles":
         known_ids = set()
@@ -1459,12 +1635,88 @@ def _record_import(summary: Dict[str, Any]) -> None:
     get_collection("data_imports").insert_one({**summary, "user_id": DEFAULT_USER_ID})
 
 
+def _finish_summary(summary: Dict[str, Any]) -> Dict[str, Any]:
+    """Add the fields the Data Import page and the regression tests both read."""
+    summary["completed_at"] = summary.get("completed_at") or datetime.now(timezone.utc).isoformat()
+    dataset = summary.get("dataset_type")
+    rows = int(summary.get("rows_received") or 0)
+    rejected = int(summary.get("rows_rejected") or 0)
+    errors = list(summary.get("validation_errors") or [])
+    accepted = int(summary.get("rows_imported") or 0)
+    filename = summary.get("filename") or ""
+    ext = _extension(filename)
+    summary["dataset"] = dataset
+    summary["rows"] = rows
+    summary["extension"] = f".{ext}" if ext else summary.get("extension")
+    summary["columns"] = list(summary.get("columns") or [])
+    summary["available_sheets"] = list(summary.get("available_sheets") or [])
+    if not summary.get("detected_columns"):
+        for sheet in summary["available_sheets"]:
+            if sheet.get("columns"):
+                summary["detected_columns"] = list(sheet["columns"])
+                break
+        else:
+            summary["detected_columns"] = list(summary["columns"])
+    fully_valid = bool(dataset) and rows > 0 and rejected == 0 and not errors and bool(summary.get("success"))
+    summary["validation"] = {
+        "valid": fully_valid,
+        "accepted_rows": accepted,
+        "rejected_rows": rejected,
+        "errors": errors,
+    }
+    if fully_valid:
+        summary["status"] = "imported" if summary.get("stored") else "valid"
+        summary["error_code"] = None
+    elif not dataset:
+        summary["status"] = "unrecognized"
+        summary["success"] = False
+        summary.setdefault("error_code", "unknown_dataset")
+    elif rows == 0:
+        summary["status"] = "needs_attention"
+        summary["success"] = False
+        summary.setdefault("error_code", "empty_dataset")
+    else:
+        summary["status"] = "needs_attention" if not summary.get("stored") or not summary.get("success") or rejected else "imported"
+        if rejected or errors:
+            summary["status"] = "needs_attention"
+        summary.setdefault("error_code", "validation_failed")
+    return summary
+
+
+def provisional_business_ids(files: Sequence[Tuple[str, bytes]]) -> set:
+    """Business ids declared by business_profiles files in this same request.
+
+    Preview validates the whole batch before anything is stored, so a climate
+    file uploaded next to business_profiles must not be rejected as unknown.
+    """
+    ids: set = set()
+    for name, content in files:
+        try:
+            ext = validate_extension(name)
+            tables, _reports = _read_tables(content, ext)
+            if not tables:
+                continue
+            _sheet, frame, dataset, info = pick_table(name, tables)
+        except (DatasetError, Exception):
+            continue
+        if dataset.key != "business_profiles" or info.get("payload_only"):
+            continue
+        if "business_id" not in frame.columns:
+            continue
+        for value in frame["business_id"].tolist():
+            text_value = _normalize_header(value)
+            if text_value:
+                ids.add(text_value)
+    return ids
+
+
 def import_table(
     filename: str,
     content: bytes,
     *,
     import_id: Optional[str] = None,
     persist: bool = True,
+    extra_business_ids: Optional[Iterable[str]] = None,
 ) -> Dict[str, Any]:
     """Parse, detect, validate and (optionally) store one uploaded file."""
     import_id = import_id or uuid.uuid4().hex
@@ -1483,22 +1735,35 @@ def import_table(
         "rows_updated": 0,
         "rows_rejected": 0,
         "validation_errors": [],
+        "available_sheets": [],
+        "detected_columns": [],
+        "columns": [],
         "started_at": started.isoformat(),
         "completed_at": None,
         "message": "",
+        "stored": bool(persist),
     }
     try:
         ext = validate_extension(filename)
+        summary["extension"] = f".{ext}"
         if len(content) > MAX_FILE_BYTES:
-            raise DatasetError(f"File is {len(content) / 1048576:.1f} MB; the limit is {MAX_FILE_BYTES // 1048576} MB.")
-        tables = _read_tables(content, ext)
+            raise DatasetError(
+                f"File is {len(content) / 1048576:.1f} MB; the limit is {MAX_FILE_BYTES // 1048576} MB.",
+                error_code="file_too_large",
+            )
+        tables, reports = _read_tables(content, ext)
+        summary["available_sheets"] = reports
         if not tables:
-            raise DatasetError("The file contains no sheets.")
+            raise DatasetError("The file contains no sheets.", error_code="empty_workbook", available_sheets=reports)
         sheet_name, frame, dataset, info = pick_table(filename, tables)
         frame = frame.dropna(how="all")
+        summary["columns"] = [str(column) for column in frame.columns]
+        summary["detected_columns"] = list(summary["columns"])
         payloads = collect_companion_payloads(tables, sheet_name, dataset)
         if info.get("payload_only"):
-            stored, errors = store_payloads_only(dataset, frame, import_id)
+            stored, errors = store_payloads_only(
+                dataset, frame, import_id, persist=persist, extra_business_ids=extra_business_ids,
+            )
             summary.update({
                 "dataset_type": dataset.key,
                 "dataset_label": dataset.label,
@@ -1509,72 +1774,82 @@ def import_table(
                 "rows_imported": stored,
                 "rows_rejected": int(len(frame) - stored),
                 "validation_errors": errors,
-                "success": stored > 0,
-                "stored": persist,
+                "success": stored > 0 and not errors,
                 "message": (
                     f"{filename} - {stored} assessment input payload(s) attached to {dataset.label}."
                     if stored else f"{filename} - no usable payload rows."
                 ),
             })
-            if persist:
-                _record_import(summary)
-            return summary
-        summary.update({
-            "dataset_type": dataset.key,
-            "dataset_label": dataset.label,
-            "collection": dataset.collection,
-            "sheet": sheet_name,
-            "detection": info,
-            "rows_received": int(len(frame)),
-        })
-        valid, errors = validate_rows(dataset, frame)
-        summary["validation_errors"] = errors
-        summary["rows_rejected"] = int(len(frame) - len(valid))
-
-        if not valid:
-            summary["message"] = (
-                f"{filename} - {summary['rows_rejected']} of {summary['rows_received']} rows rejected: "
-                + (errors[0]["message"] if errors else "no rows to import.")
-            )
-            if persist:
-                _record_import(summary)
-            return summary
-
-        if not persist:
-            # Preview: report what WOULD be stored, but write nothing.
-            summary["rows_imported"] = len(valid)
         else:
-            now = datetime.now(timezone.utc)
-            for row in valid:
-                query, document = _store_document(dataset, row, import_id, now, payloads)
-                outcome = _upsert(dataset, query, document)
-                summary["rows_imported"] += 1
-                summary["rows_inserted" if outcome == "inserted" else "rows_updated"] += 1
+            summary.update({
+                "dataset_type": dataset.key,
+                "dataset_label": dataset.label,
+                "collection": dataset.collection,
+                "sheet": sheet_name,
+                "detection": info,
+                "rows_received": int(len(frame)),
+            })
+            valid, errors = validate_rows(dataset, frame, extra_business_ids=extra_business_ids)
+            summary["validation_errors"] = errors
+            summary["rows_rejected"] = int(len(frame) - len(valid))
+            if any("Duplicate record" in (err.get("message") or "") for err in errors):
+                summary["error_code"] = "duplicate_record"
+            elif any(
+                "not present in business_profiles" in (err.get("message") or "")
+                or "No business profiles are stored yet" in (err.get("message") or "")
+                for err in errors
+            ):
+                summary["error_code"] = "unknown_business_id"
 
-        if payloads:
-            summary["companion_payloads"] = sorted(k for k, v in payloads.items() if isinstance(v, dict) and "error" not in v)
-        summary["success"] = True
-        summary["stored"] = persist
-        summary["message"] = (
-            f"{filename} - {summary['rows_imported']} {dataset.label.lower()} rows "
-            + ("validated and ready to import" if not persist else "imported")
-            + (f", {summary['rows_rejected']} rejected." if summary["rows_rejected"] else ".")
-        )
-        if dataset.business_scoped and valid:
-            summary["business_ids"] = sorted({str(row.get("business_id")) for row in valid if row.get("business_id")})
+            if not valid:
+                summary["rows_imported"] = 0
+                summary["success"] = False
+                summary["message"] = (
+                    f"{filename} - {summary['rows_rejected']} of {summary['rows_received']} rows rejected: "
+                    + (errors[0]["message"] if errors else "no rows to import.")
+                )
+            else:
+                if not persist:
+                    summary["rows_imported"] = len(valid)
+                else:
+                    now = datetime.now(timezone.utc)
+                    for row in valid:
+                        query, document = _store_document(dataset, row, import_id, now, payloads)
+                        outcome = _upsert(dataset, query, document)
+                        summary["rows_imported"] += 1
+                        summary["rows_inserted" if outcome == "inserted" else "rows_updated"] += 1
+                if payloads:
+                    summary["companion_payloads"] = sorted(
+                        k for k, v in payloads.items() if isinstance(v, dict) and "error" not in v
+                    )
+                summary["success"] = True
+                summary["message"] = (
+                    f"{filename} - {summary['rows_imported']} {dataset.label.lower()} rows "
+                    + ("validated and ready to import" if not persist else "imported")
+                    + (f", {summary['rows_rejected']} rejected." if summary["rows_rejected"] else ".")
+                )
+                if dataset.business_scoped and valid:
+                    summary["business_ids"] = sorted({str(row.get("business_id")) for row in valid if row.get("business_id")})
     except DatasetError as exc:
         summary["message"] = f"{filename} - {exc}"
         summary["error"] = str(exc)
+        summary["error_code"] = getattr(exc, "error_code", "dataset_error")
+        extra = getattr(exc, "extra", {}) or {}
+        for key in ("detected_columns", "available_sheets", "candidates"):
+            if extra.get(key) is not None:
+                summary[key] = extra[key]
+        summary["success"] = False
     except Exception as exc:  # pragma: no cover - defensive
         logger.error("Import of %s failed: %s", filename, exc, exc_info=True)
         summary["message"] = f"{filename} - import failed ({type(exc).__name__})."
         summary["error"] = str(exc)
+        summary["error_code"] = "import_failed"
+        summary["success"] = False
 
-    summary["completed_at"] = datetime.now(timezone.utc).isoformat()
+    summary = _finish_summary(summary)
     if persist:
         _record_import(summary)
     return summary
-
 
 def import_files(files: Iterable[Tuple[str, bytes]]) -> Dict[str, Any]:
     """Import several uploads in one request.
@@ -1590,11 +1865,15 @@ def import_files(files: Iterable[Tuple[str, bytes]]) -> Dict[str, Any]:
     def sort_key(item: Tuple[str, bytes]) -> Tuple[int, int, str]:
         name = item[0]
         ext = _extension(name)
-        stem = re.sub(r"__.*$", "", name.rsplit(".", 1)[0].lower())
+        stem = _filename_stem(name)
         order = IMPORT_ORDER.index(stem) if stem in IMPORT_ORDER else len(IMPORT_ORDER)
         return (0 if f".{ext}" in SUPPORTED_EXTENSIONS else 1, order, name)
 
-    results = [import_table(name, content, import_id=import_id) for name, content in sorted(items, key=sort_key)]
+    known_ids = provisional_business_ids(items)
+    results = [
+        import_table(name, content, import_id=import_id, extra_business_ids=known_ids)
+        for name, content in sorted(items, key=sort_key)
+    ]
 
     # A profile import (re)links the active business; monthly imports feed the engine.
     imported_types = [r["dataset_type"] for r in results if r["success"]]

@@ -43,13 +43,17 @@ export const AIChatAssistant: React.FC = () => {
 
   // Whether real business data is stored (only used for the intro copy).
   useEffect(() => {
-    if (!open) return;
     let cancelled = false;
-    getAIChatSuggestions()
-      .then((res) => !cancelled && setHasData(res.has_data))
-      .catch(() => !cancelled && setHasData(null));
+    const load = () => {
+      getAIChatSuggestions()
+        .then((res) => !cancelled && setHasData(res.has_data))
+        .catch(() => !cancelled && setHasData(null));
+    };
+    if (open) load();
+    window.addEventListener('climacred:data-imported', load);
     return () => {
       cancelled = true;
+      window.removeEventListener('climacred:data-imported', load);
     };
   }, [open]);
 
