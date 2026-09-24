@@ -3,6 +3,7 @@ import {
   Compass,
   LayoutDashboard,
   FileSpreadsheet,
+  UploadCloud,
   Building2,
   Zap,
   Droplets,
@@ -44,7 +45,8 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'landing', label: 'Welcome / Home', icon: Compass, section: 'Overview' },
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, section: 'Overview' },
   { id: 'profile', label: 'Business Profile', icon: Building2, section: 'Data & Assessment' },
-  { id: 'assessment', label: 'Climate Assessment', icon: FileSpreadsheet, badge: 'Step 1', section: 'Data & Assessment' },
+  { id: 'import', label: 'Data Import', icon: UploadCloud, section: 'Data & Assessment' },
+  { id: 'assessment', label: 'Climate Assessment', icon: FileSpreadsheet, section: 'Data & Assessment' },
   { id: 'fingerprint', label: 'Climate Fingerprint', icon: Fingerprint, badge: 'Key', section: 'Climate Intelligence' },
   { id: 'energy', label: 'Energy', icon: Zap, section: 'Resource Streams' },
   { id: 'water', label: 'Water', icon: Droplets, section: 'Resource Streams' },
@@ -67,8 +69,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
   businessName = null,
   businessSize = null,
 }) => {
-  const initials = businessName
+  const hasProfile = Boolean(businessName && businessName.trim());
+  const initials = hasProfile && businessName
     ? businessName
+        .trim()
         .split(/\s+/)
         .filter(Boolean)
         .slice(0, 2)
@@ -188,23 +192,35 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {/* Bottom Profile & Version Area */}
         <div className="p-3 border-t border-slate-100 bg-slate-50/60">
           <div className="p-2.5 rounded-xl bg-white border border-slate-200/80 shadow-2xs flex items-center justify-between">
-            <div className="flex items-center gap-2.5 min-w-0">
+            <div className="flex items-center gap-2.5 min-w-0 flex-1">
               <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold text-xs shrink-0">
                 {initials}
               </div>
               <div className="min-w-0 flex-1">
-                <p className="text-xs font-bold text-slate-800 truncate">
-                  {businessName || 'No business profile'}
+                {/* Real stored business details only - never a hardcoded/demo business */}
+                <p
+                  className="text-xs font-bold text-slate-800 truncate"
+                  title={hasProfile ? (businessName || undefined) : 'No business profile'}
+                >
+                  {hasProfile ? businessName : 'No business profile'}
                 </p>
                 <div className="flex items-center gap-1">
-                  <ShieldCheck className="w-3 h-3 text-emerald-600" />
-                  <span className="text-[10px] text-slate-600 truncate">
-                    {businessSize || 'Add your data to begin'}
-                  </span>
+                  <ShieldCheck className="w-3 h-3 text-emerald-600 shrink-0" />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onNavigate(hasProfile ? 'profile' : 'import');
+                      onCloseMobile();
+                    }}
+                    className="text-[10px] text-slate-600 truncate text-left hover:text-emerald-700 hover:underline"
+                    title={hasProfile ? (businessSize || 'Business Profile') : 'Add or import your business data'}
+                  >
+                    {hasProfile ? (businessSize || 'Business Profile') : 'Add or import your business data'}
+                  </button>
                 </div>
               </div>
             </div>
-            <span className="text-[10px] font-mono font-semibold text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded">
+            <span className="text-[10px] font-mono font-semibold text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded shrink-0">
               v1.0
             </span>
           </div>

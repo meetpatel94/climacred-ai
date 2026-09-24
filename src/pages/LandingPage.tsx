@@ -61,18 +61,18 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             {/* CTAs */}
             <div className="flex flex-wrap items-center gap-4 pt-2">
               <button
-                onClick={() => onNavigate('assessment')}
+                onClick={() => onNavigate(hasAssessment ? 'fingerprint' : 'import')}
                 className="px-6 py-3.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-bold text-sm shadow-lg shadow-emerald-500/25 flex items-center gap-2 group transition-all hover:scale-[1.02]"
               >
-                <span>{hasAssessment ? 'Review Climate Assessment' : 'Start Climate Assessment'}</span>
+                <span>{hasAssessment ? 'Explore Climate Fingerprint' : 'Import Business Data'}</span>
                 <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
               </button>
 
               <button
-                onClick={() => onNavigate('dashboard')}
+                onClick={() => onNavigate(hasProfile || hasAssessment ? 'dashboard' : 'assessment')}
                 className="px-6 py-3.5 rounded-xl bg-white/10 hover:bg-white/15 border border-white/20 text-white font-semibold text-sm backdrop-blur-md transition-all hover:scale-[1.02]"
               >
-                {hasProfile || hasAssessment ? 'Open Dashboard' : 'View Dashboard'}
+                {hasProfile || hasAssessment ? 'Open Dashboard' : 'Manual Assessment'}
               </button>
             </div>
 

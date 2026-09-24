@@ -53,8 +53,7 @@ _CONVERSATION_ID_RE = re.compile(r"^[A-Za-z0-9_-]{8,64}$")
 
 #: Wording required when no business data is stored (Gemini is instructed to use it).
 NO_DATA_SENTENCE = (
-    "I don't have your business climate data yet. Complete your Climate Assessment and "
-    "I'll analyze your actual data."
+    "No business data is available yet. Import a business dataset to get climate-specific insights."
 )
 UNAVAILABLE_VALUE_SENTENCE = "The application does not currently have that value."
 
@@ -86,7 +85,11 @@ HARD RULES (never break these):
 4. Cost / investment / payback questions: use CONTEXT.selected_scenario, CONTEXT.calculated_answers or the
    investment values in CONTEXT.recommendations. If none contain the value, reply: "{UNAVAILABLE_VALUE_SENTENCE}"
 5. Trends / "what changed": compare periods only when CONTEXT.history.resource_changes.available is true;
-   otherwise say: "{INSUFFICIENT_HISTORY}"
+   otherwise say: "{INSUFFICIENT_HISTORY}". For a question about a recent window ("the last 12 months") use
+   CONTEXT.history.last_12_months; for the whole recorded period use CONTEXT.history.resource_changes.
+   CONTEXT.history.resource_series holds the actual per-period values (CONTEXT.history.resource_series_source
+   says whether they came from an imported monthly dataset or from stored fingerprint snapshots) - quote the
+   values that are there, never interpolate between them.
 6. Style: short, clear, business-friendly, action-oriented. When it fits: a one-line answer, then "Why:",
    then "What to do next:" (max 3 numbered steps), citing one relevant number from CONTEXT. Plain text only
    (no markdown headers, no code fences, no JSON). Max ~180 words unless the user asks for more detail.

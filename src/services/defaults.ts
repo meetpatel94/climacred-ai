@@ -23,16 +23,16 @@ export const EMPTY_STATES = {
   waste: 'No waste data yet',
   emissions: 'No emissions data yet',
   mobility: 'No mobility data yet',
-  fingerprint: 'Complete your Climate Assessment to generate your Climate Fingerprint.',
+  fingerprint: 'Import your business data to generate your Climate Fingerprint.',
   dashboard: 'No business climate data yet.',
-  recommendations: 'No recommendations yet. Complete your Climate Assessment to unlock personalized interventions.',
-  plan: 'No transformation plan yet. Complete your Climate Assessment to generate a personalized roadmap.',
+  recommendations: 'No recommendations yet. Complete or import your Climate Assessment to unlock personalized interventions.',
+  plan: 'No transformation plan yet. Complete or import your Climate Assessment to generate a personalized roadmap.',
   impact: 'No impact verification data yet. Submit before/after meter readings after an intervention.',
-  report: 'No climate report yet. Add business data and complete the Climate Assessment to generate one.',
+  report: 'No climate report yet. Add business data and run the Climate Assessment to generate one.',
   history: 'Insufficient historical data for a reliable trend. Generate another Climate Fingerprint snapshot to build history.',
   solutions: 'No solutions match your filters.',
-  scenarioNoData: 'No business climate data yet. Complete your Climate Assessment to simulate scenarios for your business.',
-  aiNoData: 'No business climate data yet. Complete your Climate Assessment so the ClimaCred AI Assistant can analyze your actual data.',
+  scenarioNoData: 'No business climate data yet. Import business data or complete an assessment to simulate scenarios for your business.',
+  aiNoData: 'No business climate data yet. Import your business data so the ClimaCred AI Assistant can analyze your actual data.',
 };
 
 /**

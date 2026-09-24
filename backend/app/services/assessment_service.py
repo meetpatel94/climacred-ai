@@ -103,6 +103,14 @@ def save_assessment(data: Dict[str, Any], user_id: str = DEFAULT_USER_ID) -> Dic
             merged[target_key].update(data[section])
         else:
             # keep existing if not provided
+            target_key = "greenPractices" if section == "green_practices" else section
+            if target_key in merged:
+                # Already built in this pass. The "green_practices" alias always runs
+                # after "greenPractices"; without this guard it overwrote the freshly
+                # merged section with the stored one, so green practices could never be
+                # changed after the first save (and an imported business kept the
+                # previous business's practices).
+                continue
             if section in existing:
                 merged[section] = existing[section]
             elif section == "green_practices" and "greenPractices" in existing:

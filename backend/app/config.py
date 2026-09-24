@@ -28,7 +28,8 @@ class Settings(BaseSettings):
     # contains "generateContent") AND that passes a real generateContent probe.
     # If you set a model, it is verified the same way before it is ever used;
     # an unavailable model is reported by GET /api/ai/status instead of being called blindly.
-    GEMINI_MODEL: str = ""
+    # GEMINI_MODEL: configured default model is gemini-3.8-flash
+    GEMINI_MODEL: str = "gemini-3.8-flash"
     GEMINI_API_BASE: str = "https://generativelanguage.googleapis.com/v1beta"
     # Thinking models (Gemini 2.5 / 3.x) can take a while on large prompts.
     GEMINI_TIMEOUT_SECONDS: int = 60

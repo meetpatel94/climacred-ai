@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Fingerprint,
   Zap,
@@ -9,6 +9,10 @@ import {
   Layers,
   ArrowRight,
   TrendingDown,
+  Loader2,
+  UploadCloud,
+  Play,
+  FileSpreadsheet,
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -23,12 +27,16 @@ import { ClimateFingerprint, PageId } from '../types';
 import { ImpactBadge } from '../components/common/StatusBadge';
 import { AIInsightCard } from '../components/common/AIInsightCard';
 import { EmptyState } from '../components/common/EmptyState';
-import { EMPTY_STATES } from '../services/defaults';
+import { generateClimateFingerprint, syncAssessmentFromImports, getClimateFingerprint } from '../services/api';
 
 interface ClimateFingerprintPageProps {
   /** null until the user has stored an assessment and a fingerprint was calculated */
   fingerprint: ClimateFingerprint | null;
+  hasProfile?: boolean;
+  hasAssessment?: boolean;
   onNavigate: (page: PageId) => void;
+  onFingerprintGenerated?: (fingerprint: ClimateFingerprint) => void;
+  notify?: (type: 'success' | 'info' | 'warning' | 'error', title: string, message?: string) => void;
 }
 
 const DIMENSION_ICONS: Record<string, React.ElementType> = {
@@ -42,10 +50,107 @@ const DIMENSION_ICONS: Record<string, React.ElementType> = {
 
 export const ClimateFingerprintPage: React.FC<ClimateFingerprintPageProps> = ({
   fingerprint,
+  hasProfile = false,
+  hasAssessment = false,
   onNavigate,
+  onFingerprintGenerated,
+  notify,
 }) => {
-  // No stored data -> no diagnostic is invented; the user is guided to the assessment.
+  const [running, setRunning] = useState(false);
+  const [runError, setRunError] = useState<string | null>(null);
+
+  // CASE C — Assessment exists: automatically attempt to load/generate the fingerprint
+  useEffect(() => {
+    if (!fingerprint && hasAssessment) {
+      let active = true;
+      (async () => {
+        try {
+          const fp = await getClimateFingerprint() || await generateClimateFingerprint();
+          if (active && fp && onFingerprintGenerated) {
+            onFingerprintGenerated(fp);
+          }
+        } catch (err) {
+          console.warn('Auto-resolving fingerprint failed', err);
+        }
+      })();
+      return () => {
+        active = false;
+      };
+    }
+  }, [fingerprint, hasAssessment, onFingerprintGenerated]);
+
+  const handleRunAssessment = async () => {
+    setRunning(true);
+    setRunError(null);
+    try {
+      // First attempt to sync assessment from imported data
+      const syncRes = await syncAssessmentFromImports();
+      if (syncRes.synced) {
+        const fp = await getClimateFingerprint() || await generateClimateFingerprint();
+        if (fp && onFingerprintGenerated) {
+          onFingerprintGenerated(fp);
+        }
+        if (notify) {
+          notify(
+            'success',
+            'Climate Assessment Calculated',
+            `Score: ${syncRes.overall_score}/100 (${syncRes.score_label}).`
+          );
+        }
+      } else {
+        // If not synced from import, try generating from stored assessment
+        const fp = await generateClimateFingerprint();
+        if (fp && onFingerprintGenerated) {
+          onFingerprintGenerated(fp);
+          if (notify) {
+            notify('success', 'Climate Fingerprint Generated', `Overall score: ${fp.overallScore}/100.`);
+          }
+        } else {
+          setRunError(syncRes.message || 'Could not calculate assessment from stored data.');
+        }
+      }
+    } catch (err: any) {
+      setRunError(err?.message || 'Failed to run climate assessment.');
+    } finally {
+      setRunning(false);
+    }
+  };
+
+  // If no fingerprint yet, show the appropriate non-blocking state:
   if (!fingerprint) {
+    // CASE A — No data exists
+    if (!hasProfile && !hasAssessment) {
+      return (
+        <div className="space-y-8 max-w-4xl pb-16">
+          <div className="bg-white border border-slate-200/90 rounded-3xl p-6 sm:p-8 shadow-xs space-y-3">
+            <div className="flex items-center gap-2">
+              <span className="p-2 rounded-xl bg-emerald-50 text-emerald-700">
+                <Fingerprint className="w-5 h-5" />
+              </span>
+              <span className="text-xs font-bold uppercase tracking-wider text-emerald-800">
+                Multi-Dimensional Diagnostic
+              </span>
+            </div>
+            <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight">
+              Enterprise Climate Fingerprint
+            </h2>
+            <p className="text-sm text-slate-600">
+              Import your business data to generate your Climate Fingerprint.
+            </p>
+          </div>
+
+          <EmptyState
+            icon={UploadCloud}
+            title="No business data yet"
+            message="Import your business data to generate your Climate Fingerprint."
+            actionLabel="Import Business Data"
+            onAction={() => onNavigate('import')}
+          />
+        </div>
+      );
+    }
+
+    // CASE B — Business profile exists but assessment does not exist
     return (
       <div className="space-y-8 max-w-4xl pb-16">
         <div className="bg-white border border-slate-200/90 rounded-3xl p-6 sm:p-8 shadow-xs space-y-3">
@@ -57,21 +162,71 @@ export const ClimateFingerprintPage: React.FC<ClimateFingerprintPageProps> = ({
               Multi-Dimensional Diagnostic
             </span>
           </div>
-          <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight">Enterprise Climate Fingerprint</h2>
-          <p className="text-sm text-slate-600">{EMPTY_STATES.fingerprint}</p>
+          <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight">
+            Enterprise Climate Fingerprint
+          </h2>
+          <p className="text-sm text-slate-600">
+            ClimaCred calculates your fingerprint from your stored business profile and Climate Assessment.
+          </p>
         </div>
 
-        <EmptyState
-          icon={Fingerprint}
-          title="No Climate Fingerprint yet"
-          message="ClimaCred calculates your fingerprint from your stored business profile and Climate Assessment. Nothing is estimated before you submit data."
-          actionLabel="Complete Climate Assessment"
-          onAction={() => onNavigate('assessment')}
-        />
+        <div className="bg-white border border-dashed border-slate-300 rounded-2xl p-8 text-center space-y-4">
+          <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-700 mx-auto flex items-center justify-center">
+            <Fingerprint className="w-6 h-6" />
+          </div>
+          <div className="max-w-md mx-auto">
+            <h3 className="text-base font-extrabold text-slate-900">Climate Assessment required</h3>
+            <p className="text-xs text-slate-600 mt-1 leading-relaxed">
+              Calculate your multi-dimensional Climate Fingerprint from your stored business profile and imported resource streams.
+            </p>
+          </div>
+
+          {runError && (
+            <p className="text-xs font-semibold text-rose-700 max-w-md mx-auto">{runError}</p>
+          )}
+
+          <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+            <button
+              type="button"
+              onClick={handleRunAssessment}
+              disabled={running}
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-colors disabled:opacity-50"
+            >
+              {running ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Calculating Fingerprint…</span>
+                </>
+              ) : (
+                <>
+                  <Play className="w-4 h-4" />
+                  <span>Run Climate Assessment</span>
+                </>
+              )}
+            </button>
+            <button
+              type="button"
+              onClick={() => onNavigate('import')}
+              className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-slate-300 text-slate-700 hover:bg-slate-50 text-xs font-bold transition-colors"
+            >
+              <UploadCloud className="w-4 h-4 text-emerald-600" />
+              <span>Import Business Data</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => onNavigate('assessment')}
+              className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 text-xs font-semibold transition-colors"
+            >
+              <FileSpreadsheet className="w-4 h-4 text-slate-500" />
+              <span>Assessment Form</span>
+            </button>
+          </div>
+        </div>
       </div>
     );
   }
 
+  // CASE C — Assessment exists and Fingerprint exists: display full diagnostic
   const radarData = fingerprint.dimensions.map((d) => ({
     dimension: d.dimension,
     score: d.score,
@@ -282,3 +437,5 @@ export const ClimateFingerprintPage: React.FC<ClimateFingerprintPageProps> = ({
     </div>
   );
 };
+
+export default ClimateFingerprintPage;
