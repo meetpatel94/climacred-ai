@@ -1,0 +1,85 @@
+{
+  "business_id": "B001",
+  "note": "POST /api/profile then /api/assessment for this business, then POST /api/fingerprint/generate. Fictional demo data.",
+  "profile": {
+    "business_name": "Sunrise Textile Industries Pvt. Ltd.",
+    "name": "Sunrise Textile Industries Pvt. Ltd.",
+    "industry": "Textile Manufacturing",
+    "business_type": "Knitting, Dyeing & Garment Finishing",
+    "businessType": "Knitting, Dyeing & Garment Finishing",
+    "location": "Tiruppur, Tamil Nadu, India",
+    "employees": 148,
+    "working_days": 26,
+    "workingDaysPerMonth": 26,
+    "production_volume": "68,000 kg / month",
+    "productionVolume": "68,000 kg / month",
+    "operating_hours": 16,
+    "operatingHoursPerDay": 16,
+    "business_size": "Medium",
+    "businessSize": "Medium",
+    "facility_area_sqft": 42000,
+    "facilityAreaSqFt": 42000,
+    "contact_email": "operations.b001@climacred-demo.example",
+    "contactEmail": "operations.b001@climacred-demo.example",
+    "phone": "+91 00000 00000 (placeholder)"
+  },
+  "assessment": {
+    "energy": {
+      "monthlyElectricityKwh": 266531,
+      "monthlyElectricityBillInr": 2292167,
+      "dieselGeneratorHoursPerMonth": 58,
+      "generatorFuelLitresPerMonth": 1006,
+      "existingSolarCapacityKw": 0.0,
+      "energyEfficientEquipmentPercent": 25.0
+    },
+    "water": {
+      "monthlyWaterLitres": 4803700,
+      "waterSource": "Groundwater / Borewell",
+      "waterRecyclingAvailable": false,
+      "rainwaterHarvesting": false,
+      "leakageFrequency": "Monthly",
+      "wastewaterTreatment": "Primary / Settling"
+    },
+    "waste": {
+      "organicWasteKgPerMonth": 436,
+      "plasticWasteKgPerMonth": 1281,
+      "paperWasteKgPerMonth": 671,
+      "industrialWasteKgPerMonth": 5833,
+      "textileMaterialWasteKgPerMonth": 10109,
+      "currentRecyclingPercent": 22.0,
+      "wasteSegregationPracticed": true
+    },
+    "emissions": {
+      "primaryFuel": "Electricity Grid",
+      "monthlyDieselLitres": 2857,
+      "monthlyPetrolLitres": 0,
+      "monthlyNaturalGasKg": 320,
+      "mainEmissionSources": [
+        "Grid Electricity",
+        "Diesel Genset",
+        "Fleet Transport",
+        "Process Heat",
+        "Purchased Materials"
+      ],
+      "airPollutionControlSystem": "Basic Scrubber"
+    },
+    "mobility": {
+      "deliveryVehiclesCount": 6,
+      "vehicleFuelType": "Diesel",
+      "monthlyFleetFuelLitres": 1851,
+      "employeeCommuteMode": "Two-Wheelers",
+      "evAdoptedPercent": 0.0
+    },
+    "greenPractices": {
+      "ledLighting": true,
+      "solarPanels": false,
+      "rainwaterHarvesting": false,
+      "waterRecycling": false,
+      "wasteSegregation": true,
+      "energyEfficientMachinery": false,
+      "evAdoption": false,
+      "sustainableMaterials": false
+    }
+  },
+  "expected_overall_climate_score": 38.6
+}

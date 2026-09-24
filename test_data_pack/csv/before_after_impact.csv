@@ -1,0 +1,31 @@
+business_id,metric,baseline_value,after_value,unit,improvement_percent,verification_status,measurement_period,direction
+B001,Electricity consumption,297560,270881,kWh/month,9.0,Self-reported by business (not third-party verified),Baseline 2025-03 to 2025-08 vs Post 2026-03 to 2026-08,Reduction is favourable
+B001,Water consumption,4755859,4783720,litres/month,-0.6,Self-reported by business (not third-party verified),Baseline 2025-03 to 2025-08 vs Post 2026-03 to 2026-08,Reduction is favourable
+B001,Waste to landfill,10802,11985,kg/month,-11.0,Self-reported by business (not third-party verified),Baseline 2025-03 to 2025-08 vs Post 2026-03 to 2026-08,Reduction is favourable
+B001,Recycling rate,24.7,22.0,%,-10.9,Self-reported by business (not third-party verified),Baseline 2025-03 to 2025-08 vs Post 2026-03 to 2026-08,Increase is favourable
+B001,Diesel consumption,2854,2992,litres/month,-4.8,Self-reported by business (not third-party verified),Baseline 2025-03 to 2025-08 vs Post 2026-03 to 2026-08,Reduction is favourable
+B001,Scope 1 emissions,8.49,8.89,tCO2e/month,-4.7,Self-reported by business (not third-party verified),Baseline 2025-03 to 2025-08 vs Post 2026-03 to 2026-08,Reduction is favourable
+B001,Scope 2 emissions,244.0,222.12,tCO2e/month,9.0,Self-reported by business (not third-party verified),Baseline 2025-03 to 2025-08 vs Post 2026-03 to 2026-08,Reduction is favourable
+B001,Total emissions,699.25,677.97,tCO2e/month,3.0,Self-reported by business (not third-party verified),Baseline 2025-03 to 2025-08 vs Post 2026-03 to 2026-08,Reduction is favourable
+B001,Energy intensity,4.184,3.602,kWh per production unit,13.9,Self-reported by business (not third-party verified),Baseline 2025-03 to 2025-08 vs Post 2026-03 to 2026-08,Reduction is favourable
+B001,Water intensity,66.89,63.6,litres per production unit,4.9,Self-reported by business (not third-party verified),Baseline 2025-03 to 2025-08 vs Post 2026-03 to 2026-08,Reduction is favourable
+B003,Electricity consumption,158650,153217,kWh/month,3.4,Self-reported by business (not third-party verified),Baseline 2025-03 to 2025-08 vs Post 2026-03 to 2026-08,Reduction is favourable
+B003,Water consumption,325568,316720,litres/month,2.7,Self-reported by business (not third-party verified),Baseline 2025-03 to 2025-08 vs Post 2026-03 to 2026-08,Reduction is favourable
+B003,Waste to landfill,6152,5172,kg/month,15.9,Self-reported by business (not third-party verified),Baseline 2025-03 to 2025-08 vs Post 2026-03 to 2026-08,Reduction is favourable
+B003,Recycling rate,40.9,50.6,%,23.7,Self-reported by business (not third-party verified),Baseline 2025-03 to 2025-08 vs Post 2026-03 to 2026-08,Increase is favourable
+B003,Diesel consumption,1514,1656,litres/month,-9.4,Self-reported by business (not third-party verified),Baseline 2025-03 to 2025-08 vs Post 2026-03 to 2026-08,Reduction is favourable
+B003,Scope 1 emissions,7.37,7.87,tCO2e/month,-6.8,Self-reported by business (not third-party verified),Baseline 2025-03 to 2025-08 vs Post 2026-03 to 2026-08,Reduction is favourable
+B003,Scope 2 emissions,128.92,124.49,tCO2e/month,3.4,Self-reported by business (not third-party verified),Baseline 2025-03 to 2025-08 vs Post 2026-03 to 2026-08,Reduction is favourable
+B003,Total emissions,202.72,198.26,tCO2e/month,2.2,Self-reported by business (not third-party verified),Baseline 2025-03 to 2025-08 vs Post 2026-03 to 2026-08,Reduction is favourable
+B003,Energy intensity,1.407,1.407,kWh per production unit,0.0,Self-reported by business (not third-party verified),Baseline 2025-03 to 2025-08 vs Post 2026-03 to 2026-08,Reduction is favourable
+B003,Water intensity,2.89,2.91,litres per production unit,-0.7,Self-reported by business (not third-party verified),Baseline 2025-03 to 2025-08 vs Post 2026-03 to 2026-08,Reduction is favourable
+B004,Electricity consumption,43883,40913,kWh/month,6.8,Self-reported by business (not third-party verified),Baseline 2025-03 to 2025-08 vs Post 2026-03 to 2026-08,Reduction is favourable
+B004,Water consumption,62374,59618,litres/month,4.4,Self-reported by business (not third-party verified),Baseline 2025-03 to 2025-08 vs Post 2026-03 to 2026-08,Reduction is favourable
+B004,Waste to landfill,1803,1480,kg/month,17.9,Self-reported by business (not third-party verified),Baseline 2025-03 to 2025-08 vs Post 2026-03 to 2026-08,Reduction is favourable
+B004,Recycling rate,66.2,71.6,%,8.2,Self-reported by business (not third-party verified),Baseline 2025-03 to 2025-08 vs Post 2026-03 to 2026-08,Increase is favourable
+B004,Diesel consumption,625,660,litres/month,-5.6,Self-reported by business (not third-party verified),Baseline 2025-03 to 2025-08 vs Post 2026-03 to 2026-08,Reduction is favourable
+B004,Scope 1 emissions,2.65,2.76,tCO2e/month,-4.2,Self-reported by business (not third-party verified),Baseline 2025-03 to 2025-08 vs Post 2026-03 to 2026-08,Reduction is favourable
+B004,Scope 2 emissions,34.58,30.25,tCO2e/month,12.5,Self-reported by business (not third-party verified),Baseline 2025-03 to 2025-08 vs Post 2026-03 to 2026-08,Reduction is favourable
+B004,Total emissions,154.33,149.94,tCO2e/month,2.8,Self-reported by business (not third-party verified),Baseline 2025-03 to 2025-08 vs Post 2026-03 to 2026-08,Reduction is favourable
+B004,Energy intensity,0.233,0.227,kWh per production unit,2.6,Self-reported by business (not third-party verified),Baseline 2025-03 to 2025-08 vs Post 2026-03 to 2026-08,Reduction is favourable
+B004,Water intensity,0.33,0.33,litres per production unit,0.0,Self-reported by business (not third-party verified),Baseline 2025-03 to 2025-08 vs Post 2026-03 to 2026-08,Reduction is favourable

@@ -1,0 +1,85 @@
+{
+  "business_id": "B003",
+  "note": "POST /api/profile then /api/assessment for this business, then POST /api/fingerprint/generate. Fictional demo data.",
+  "profile": {
+    "business_name": "FreshHarvest Food Processing Pvt. Ltd.",
+    "name": "FreshHarvest Food Processing Pvt. Ltd.",
+    "industry": "Food Processing",
+    "business_type": "Frozen Vegetables, Pulp & Dairy Desserts",
+    "businessType": "Frozen Vegetables, Pulp & Dairy Desserts",
+    "location": "Anand, Gujarat, India",
+    "employees": 96,
+    "working_days": 24,
+    "workingDaysPerMonth": 24,
+    "production_volume": "96,000 kg / month",
+    "productionVolume": "96,000 kg / month",
+    "operating_hours": 14,
+    "operatingHoursPerDay": 14,
+    "business_size": "Medium",
+    "businessSize": "Medium",
+    "facility_area_sqft": 26000,
+    "facilityAreaSqFt": 26000,
+    "contact_email": "plant.b003@climacred-demo.example",
+    "contactEmail": "plant.b003@climacred-demo.example",
+    "phone": "+91 00000 00000 (placeholder)"
+  },
+  "assessment": {
+    "energy": {
+      "monthlyElectricityKwh": 132701,
+      "monthlyElectricityBillInr": 1088148,
+      "dieselGeneratorHoursPerMonth": 18,
+      "generatorFuelLitresPerMonth": 269,
+      "existingSolarCapacityKw": 20.0,
+      "energyEfficientEquipmentPercent": 55.0
+    },
+    "water": {
+      "monthlyWaterLitres": 297303,
+      "waterSource": "Municipal",
+      "waterRecyclingAvailable": true,
+      "rainwaterHarvesting": false,
+      "leakageFrequency": "Rarely",
+      "wastewaterTreatment": "Full ETP / STP"
+    },
+    "waste": {
+      "organicWasteKgPerMonth": 6761,
+      "plasticWasteKgPerMonth": 1161,
+      "paperWasteKgPerMonth": 798,
+      "industrialWasteKgPerMonth": 1886,
+      "textileMaterialWasteKgPerMonth": 0,
+      "currentRecyclingPercent": 50.4,
+      "wasteSegregationPracticed": true
+    },
+    "emissions": {
+      "primaryFuel": "Natural Gas / PNG",
+      "monthlyDieselLitres": 1566,
+      "monthlyPetrolLitres": 404,
+      "monthlyNaturalGasKg": 932,
+      "mainEmissionSources": [
+        "Grid Electricity",
+        "Diesel Genset",
+        "Fleet Transport",
+        "Process Heat",
+        "Purchased Materials"
+      ],
+      "airPollutionControlSystem": "Bag Filter / ESP"
+    },
+    "mobility": {
+      "deliveryVehiclesCount": 5,
+      "vehicleFuelType": "Mixed Fleet",
+      "monthlyFleetFuelLitres": 1701,
+      "employeeCommuteMode": "Company Bus",
+      "evAdoptedPercent": 20
+    },
+    "greenPractices": {
+      "ledLighting": true,
+      "solarPanels": true,
+      "rainwaterHarvesting": false,
+      "waterRecycling": true,
+      "wasteSegregation": true,
+      "energyEfficientMachinery": true,
+      "evAdoption": true,
+      "sustainableMaterials": false
+    }
+  },
+  "expected_overall_climate_score": 70.4
+}

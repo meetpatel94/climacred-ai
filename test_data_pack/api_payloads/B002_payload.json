@@ -1,0 +1,85 @@
+{
+  "business_id": "B002",
+  "note": "POST /api/profile then /api/assessment for this business, then POST /api/fingerprint/generate. Fictional demo data.",
+  "profile": {
+    "business_name": "TechNova Precision Machining LLP",
+    "name": "TechNova Precision Machining LLP",
+    "industry": "Precision Engineering / Machining",
+    "business_type": "CNC Machined Automotive Components",
+    "businessType": "CNC Machined Automotive Components",
+    "location": "Rajkot, Gujarat, India",
+    "employees": 62,
+    "working_days": 26,
+    "workingDaysPerMonth": 26,
+    "production_volume": "28,000 pieces / month",
+    "productionVolume": "28,000 pieces / month",
+    "operating_hours": 12,
+    "operatingHoursPerDay": 12,
+    "business_size": "Small",
+    "businessSize": "Small",
+    "facility_area_sqft": 18500,
+    "facilityAreaSqFt": 18500,
+    "contact_email": "works.b002@climacred-demo.example",
+    "contactEmail": "works.b002@climacred-demo.example",
+    "phone": "+91 00000 00000 (placeholder)"
+  },
+  "assessment": {
+    "energy": {
+      "monthlyElectricityKwh": 99879,
+      "monthlyElectricityBillInr": 888923,
+      "dieselGeneratorHoursPerMonth": 26,
+      "generatorFuelLitresPerMonth": 389,
+      "existingSolarCapacityKw": 0.0,
+      "energyEfficientEquipmentPercent": 40.0
+    },
+    "water": {
+      "monthlyWaterLitres": 48863,
+      "waterSource": "Municipal + Borewell",
+      "waterRecyclingAvailable": false,
+      "rainwaterHarvesting": false,
+      "leakageFrequency": "Rarely",
+      "wastewaterTreatment": "Primary / Settling"
+    },
+    "waste": {
+      "organicWasteKgPerMonth": 212,
+      "plasticWasteKgPerMonth": 506,
+      "paperWasteKgPerMonth": 274,
+      "industrialWasteKgPerMonth": 2306,
+      "textileMaterialWasteKgPerMonth": 0,
+      "currentRecyclingPercent": 32.3,
+      "wasteSegregationPracticed": true
+    },
+    "emissions": {
+      "primaryFuel": "Electricity Grid",
+      "monthlyDieselLitres": 3816,
+      "monthlyPetrolLitres": 250,
+      "monthlyNaturalGasKg": 0,
+      "mainEmissionSources": [
+        "Grid Electricity",
+        "Diesel Genset",
+        "Fleet Transport",
+        "Process Heat",
+        "Purchased Materials"
+      ],
+      "airPollutionControlSystem": "Bag Filter / ESP"
+    },
+    "mobility": {
+      "deliveryVehiclesCount": 10,
+      "vehicleFuelType": "Diesel",
+      "monthlyFleetFuelLitres": 3421,
+      "employeeCommuteMode": "Mixed",
+      "evAdoptedPercent": 0.0
+    },
+    "greenPractices": {
+      "ledLighting": true,
+      "solarPanels": false,
+      "rainwaterHarvesting": false,
+      "waterRecycling": false,
+      "wasteSegregation": true,
+      "energyEfficientMachinery": false,
+      "evAdoption": false,
+      "sustainableMaterials": false
+    }
+  },
+  "expected_overall_climate_score": 56.0
+}

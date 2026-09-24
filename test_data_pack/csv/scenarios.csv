@@ -1,0 +1,36 @@
+scenario_id,business_id,scenario_name,solutions_included,capex,annual_operating_cost_change,annual_energy_savings_kwh,annual_water_savings_litres,annual_waste_reduction_kg,annual_emission_reduction_tco2e,annual_cost_savings,payback_years,projected_5_year_savings,implementation_months,baseline_annual_electricity_kwh,baseline_annual_water_litres,baseline_annual_emissions_tco2e
+SCN-B001-01,B001,Current Baseline,None (business as usual),0,0,0,0,0,0.0,0,0.0,0,0,3198372,57644400,8055.26
+SCN-B001-02,B001,Solar Scenario,sol-solar,3118000,93540,108550,0,0,89.01,920000,3.39,1014300,6,3198372,57644400,8055.26
+SCN-B001-03,B001,Energy Efficiency Scenario,"sol-machinery-vfd, sol-led-iot, sol-smart-metering, sol-hvac-optimization",2485000,26420,111353,0,0,91.31,1069000,2.32,2727900,5,3198372,57644400,8055.26
+SCN-B001-04,B001,Water Efficiency Scenario,"sol-leak-sensors, sol-rainwater, sol-water-ro, sol-etp-optimization",4553000,211980,12531,5806211,0,39.41,1362000,3.34,1197100,10,3198372,57644400,8055.26
+SCN-B001-05,B001,Waste Circularity Scenario,"sol-waste-segregation, sol-waste-recovery, sol-sustainable-packaging",1194000,0,0,0,73937,65.27,773000,1.54,2671000,4,3198372,57644400,8055.26
+SCN-B001-06,B001,Green Mobility Scenario,"sol-route-opt, sol-ev-fleet",1439000,54560,0,0,0,21.5,406000,3.54,318200,6,3198372,57644400,8055.26
+SCN-B001-07,B001,Combined Transformation Scenario,"sol-solar, sol-machinery-vfd, sol-led-iot, sol-smart-metering, sol-hvac-optimization, sol-leak-sensors, sol-rainwater, sol-water-ro, sol-etp-optimization, sol-waste-segregation, sol-waste-recovery, sol-sustainable-packaging, sol-route-opt, sol-ev-fleet",12789000,386500,232435,5806211,73937,306.5,4530000,2.82,7928500,10,3198372,57644400,8055.26
+SCN-B002-01,B002,Current Baseline,None (business as usual),0,0,0,0,0,0.0,0,0.0,0,0,1198548,586356,2015.69
+SCN-B002-02,B002,Solar Scenario,sol-solar,1168000,35040,40678,0,0,33.36,345000,3.39,381800,6,1198548,586356,2015.69
+SCN-B002-03,B002,Energy Efficiency Scenario,"sol-machinery-vfd, sol-led-iot, sol-smart-metering, sol-compressed-air",895000,3000,43063,0,0,35.31,418000,2.14,1180000,3,1198548,586356,2015.69
+SCN-B002-04,B002,Water Efficiency Scenario,"sol-leak-sensors, sol-rainwater, sol-etp-optimization",634000,17500,4200,637000,0,6.84,232000,2.73,438500,6,1198548,586356,2015.69
+SCN-B002-05,B002,Waste Circularity Scenario,"sol-waste-segregation, sol-waste-recovery",380000,0,0,0,34663,24.76,333000,1.14,1285000,3,1198548,586356,2015.69
+SCN-B002-06,B002,Green Mobility Scenario,"sol-route-opt, sol-ev-fleet",2659000,100840,0,0,0,39.74,750000,3.55,586800,6,1198548,586356,2015.69
+SCN-B002-07,B002,Combined Transformation Scenario,"sol-solar, sol-machinery-vfd, sol-led-iot, sol-smart-metering, sol-compressed-air, sol-leak-sensors, sol-rainwater, sol-etp-optimization, sol-waste-segregation, sol-waste-recovery, sol-route-opt, sol-ev-fleet",5736000,156380,87941,637000,34663,140.0,2078000,2.76,3872100,6,1198548,586356,2015.69
+SCN-B003-01,B003,Current Baseline,None (business as usual),0,0,0,0,0,0.0,0,0.0,0,0,1592412,3567636,2169.97
+SCN-B003-02,B003,Solar Scenario,sol-solar,1552000,46560,54045,0,0,44.32,458000,3.39,505200,6,1592412,3567636,2169.97
+SCN-B003-03,B003,Energy Efficiency Scenario,"sol-machinery-vfd, sol-led-iot, sol-smart-metering, sol-hvac-optimization",1321000,13950,59430,0,0,48.73,579000,2.28,1504250,5,1592412,3567636,2169.97
+SCN-B003-04,B003,Water Efficiency Scenario,"sol-leak-sensors, sol-rainwater, sol-water-ro",1176000,53520,0,1799000,0,9.76,348000,3.38,296400,10,1592412,3567636,2169.97
+SCN-B003-05,B003,Waste Circularity Scenario,"sol-waste-segregation, sol-composting-biogas, sol-sustainable-packaging",1324000,19120,0,0,68225,68.92,596000,2.22,1560400,5,1592412,3567636,2169.97
+SCN-B003-06,B003,Green Mobility Scenario,"sol-route-opt, sol-ev-fleet",1322000,50120,0,0,0,19.76,373000,3.54,292400,6,1592412,3567636,2169.97
+SCN-B003-07,B003,Combined Transformation Scenario,"sol-solar, sol-machinery-vfd, sol-led-iot, sol-smart-metering, sol-hvac-optimization, sol-leak-sensors, sol-rainwater, sol-water-ro, sol-waste-segregation, sol-composting-biogas, sol-sustainable-packaging, sol-route-opt, sol-ev-fleet",6695000,183270,113476,1799000,68225,191.49,2354000,2.84,4158650,10,1592412,3567636,2169.97
+SCN-B004-01,B004,Current Baseline,None (business as usual),0,0,0,0,0,0.0,0,0.0,0,0,507564,700704,1804.88
+SCN-B004-02,B004,Solar Scenario,sol-solar,1085000,32550,37774,0,0,30.97,320000,3.39,352250,6,507564,700704,1804.88
+SCN-B004-03,B004,Energy Efficiency Scenario,"sol-machinery-vfd, sol-led-iot, sol-smart-metering, sol-compressed-air",911000,3560,43769,0,0,35.89,434000,2.1,1241200,3,507564,700704,1804.88
+SCN-B004-04,B004,Water Efficiency Scenario,"sol-leak-sensors, sol-rainwater",284000,0,0,490000,0,3.39,124000,2.29,336000,6,507564,700704,1804.88
+SCN-B004-05,B004,Waste Circularity Scenario,sol-sustainable-packaging,577000,0,0,0,18884,25.49,241000,2.39,628000,4,507564,700704,1804.88
+SCN-B004-06,B004,Green Mobility Scenario,sol-route-opt,40000,0,0,0,0,2.91,51000,0.78,215000,3,507564,700704,1804.88
+SCN-B004-07,B004,Combined Transformation Scenario,"sol-solar, sol-machinery-vfd, sol-led-iot, sol-smart-metering, sol-compressed-air, sol-leak-sensors, sol-rainwater, sol-sustainable-packaging, sol-route-opt",2897000,36110,81543,490000,18884,98.66,1170000,2.48,2772450,6,507564,700704,1804.88
+SCN-B005-01,B005,Current Baseline,None (business as usual),0,0,0,0,0,0.0,0,0.0,0,0,720132,486804,1003.3
+SCN-B005-02,B005,Solar Scenario,sol-solar,1085000,32550,37774,0,0,30.97,320000,3.39,352250,6,720132,486804,1003.3
+SCN-B005-03,B005,Energy Efficiency Scenario,"sol-machinery-vfd, sol-led-iot, sol-smart-metering, sol-hvac-optimization",889000,9440,39835,0,0,32.66,386000,2.3,993800,5,720132,486804,1003.3
+SCN-B005-04,B005,Water Efficiency Scenario,"sol-leak-sensors, sol-rainwater, sol-etp-optimization",634000,17500,4200,637000,0,6.84,232000,2.73,438500,6,720132,486804,1003.3
+SCN-B005-05,B005,Waste Circularity Scenario,"sol-waste-segregation, sol-waste-recovery, sol-sustainable-packaging",676000,0,0,0,33897,34.08,375000,1.8,1199000,4,720132,486804,1003.3
+SCN-B005-06,B005,Green Mobility Scenario,sol-route-opt,40000,0,0,0,0,2.91,51000,0.78,215000,3,720132,486804,1003.3
+SCN-B005-07,B005,Combined Transformation Scenario,"sol-solar, sol-machinery-vfd, sol-led-iot, sol-smart-metering, sol-hvac-optimization, sol-leak-sensors, sol-rainwater, sol-etp-optimization, sol-waste-segregation, sol-waste-recovery, sol-sustainable-packaging, sol-route-opt",3324000,59490,81809,637000,33897,107.46,1364000,2.44,3198550,6,720132,486804,1003.3
