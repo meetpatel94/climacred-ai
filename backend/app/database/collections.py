@@ -16,6 +16,7 @@ COLLECTIONS = {
     "transformation_plans": "transformation_plans",
     "impact_records": "impact_records",
     "climate_reports": "climate_reports",
+    "ai_insights": "ai_insights",
 }
 
 def ensure_indexes():
@@ -30,6 +31,7 @@ def ensure_indexes():
         db[COLLECTIONS["transformation_plans"]].create_index("user_id")
         db[COLLECTIONS["impact_records"]].create_index([("user_id", 1), ("created_at", -1)])
         db[COLLECTIONS["climate_reports"]].create_index([("user_id", 1), ("generated_at", -1)])
+        db[COLLECTIONS["ai_insights"]].create_index([("user_id", 1), ("data_signature", 1)])
         logger.info("MongoDB indexes ensured")
     except Exception as e:
         logger.warning(f"Could not ensure indexes (mock DB or error): {e}")

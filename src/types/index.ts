@@ -175,6 +175,80 @@ export interface UserPreferences {
   theme: 'light' | 'system';
 }
 
+// --- Gemini AI intelligence layer (Phase 3) ---
+export type AISource = 'gemini' | 'calculated';
+
+export interface AINumberAudit {
+  verified: boolean;
+  unsupported_values: string[];
+}
+
+export interface AIDashboardInsightDetails {
+  data_used: string[];
+  reasoning_summary: string;
+  historical_comparison: string;
+  main_risks: string[];
+  recommended_actions: string[];
+  related_recommendations: string[];
+  expected_impact_detail: string;
+  confidence_note: string;
+  assumptions: string[];
+  number_audit: AINumberAudit;
+}
+
+export interface AIDashboardInsight {
+  summary: string;
+  recent_changes: string[];
+  key_risk: string;
+  focus_now: string;
+  priority_action: string;
+  forecast: string;
+  expected_impact: string;
+  confidence: string;
+  details: AIDashboardInsightDetails;
+}
+
+export interface AIDashboardCalculatedValues {
+  business_name: string | null;
+  climate_score: number | null;
+  score_label: string | null;
+  top_improvement_dimensions: string[] | null;
+  energy_kwh_month: number | null;
+  energy_cost_inr_month: number | null;
+  water_litres_month: number | null;
+  waste_kg_month: number | null;
+  emissions_tonnes_month: number | null;
+  mobility_fuel_litres_month: number | null;
+  data_quality_level: string | null;
+  data_quality_completeness_percent: number | null;
+  top_recommendation: { solution_id: string | null; title: string | null; priority: string | null };
+  data_sources: string;
+}
+
+export interface AIDashboardHistory {
+  available: boolean;
+  fingerprint_snapshots: number | null;
+  impact_records: number | null;
+  scenario_runs: number | null;
+  note: string;
+}
+
+export interface AIDashboardInsightsResponse {
+  status: 'ok' | 'unavailable' | 'error' | string;
+  source: AISource;
+  ai_available: boolean;
+  notice: string | null;
+  reason?: string | null;
+  model: string;
+  cached: boolean;
+  generated_at: string;
+  data_signature: string;
+  disclaimer: string;
+  calculated: AIDashboardCalculatedValues;
+  history: AIDashboardHistory;
+  insight: AIDashboardInsight;
+}
+
 export interface ToastMessage {
   id: string;
   type: 'success' | 'info' | 'warning' | 'error';

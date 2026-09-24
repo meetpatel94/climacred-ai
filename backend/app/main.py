@@ -6,7 +6,7 @@ from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from app.config import settings
 from app.database.collections import ensure_indexes
-from app.api.routes import profile, assessment, fingerprint, solutions, scenarios, transformation, impact, reports
+from app.api.routes import profile, assessment, fingerprint, solutions, scenarios, transformation, impact, reports, ai
 
 # Configure logging
 logging.basicConfig(
@@ -88,7 +88,8 @@ async def root():
             "/api/scenarios/simulate",
             "/api/transformation-plan",
             "/api/impact",
-            "/api/reports/climate"
+            "/api/reports/climate",
+            "/api/ai/dashboard-insights"
         ],
         "disclaimer": "ClimaCred AI scores are decision-support metrics, not official environmental certifications. All estimated metrics expose assumptions."
     }
@@ -140,6 +141,9 @@ app.include_router(impact.router, prefix="/api/impact/verification")  # for fron
 # Reports
 app.include_router(reports.router, prefix="/api/reports")
 app.include_router(reports.router, prefix="/api/v1/reports")
+# AI intelligence (Gemini) - reads existing stored data, never exposed to the frontend
+app.include_router(ai.router, prefix="/api/ai")
+app.include_router(ai.router, prefix="/api/v1/ai")
 # Also direct /api/reports/climate mounts via prefix /api/reports above handles /api/reports/climate
 
 # Additional top-level aliases to match spec exactly without plural confusion

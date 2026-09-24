@@ -1,9 +1,222 @@
 @import "tailwindcss";
 
+/* Class-based dark mode: the ThemeToggle adds/removes `.dark` on <html>. */
+@custom-variant dark (&:where(.dark, .dark *));
+
 @layer base {
   :root {
     font-family: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
   }
+}
+
+/* ===========================================================================
+   DARK MODE PALETTE LAYER (minimal-change strategy)
+
+   The Phase 2 UI is built on a fixed light palette (bg-white cards, slate
+   text/borders) across 16 pages. Rather than rewriting every component, the
+   recurring light utilities are remapped here while <html class="dark"> is
+   active. New components can still use Tailwind's `dark:` variant directly.
+   Rules are intentionally unlayered so they win over Tailwind's utility layer.
+   =========================================================================== */
+html {
+  color-scheme: light;
+}
+
+html.dark {
+  color-scheme: dark;
+}
+
+html.dark,
+html.dark body {
+  background-color: #020617;
+}
+
+/* --- surfaces --- */
+.dark [class~="bg-[#f8fafc]"] {
+  background-color: #020617;
+}
+.dark [class~="bg-white"] {
+  background-color: #0f172a;
+}
+.dark [class~="bg-white/90"] {
+  background-color: rgba(15, 23, 42, 0.92);
+}
+.dark [class~="bg-white/80"] {
+  background-color: rgba(15, 23, 42, 0.85);
+}
+.dark [class~="bg-slate-50"],
+.dark [class~="bg-slate-50/50"],
+.dark [class~="bg-slate-50/60"] {
+  background-color: rgba(30, 41, 59, 0.55);
+}
+.dark [class~="bg-slate-50/70"] {
+  background-color: rgba(30, 41, 59, 0.75);
+}
+.dark [class~="bg-slate-100"],
+.dark [class~="bg-slate-200"] {
+  background-color: #1e293b;
+}
+
+/* --- tinted status chips --- */
+.dark [class~="bg-emerald-50"],
+.dark [class~="bg-emerald-50/50"],
+.dark [class~="bg-emerald-50/70"],
+.dark [class~="bg-emerald-100"] {
+  background-color: rgba(16, 185, 129, 0.14);
+}
+.dark [class~="bg-teal-50"],
+.dark [class~="bg-teal-100"] {
+  background-color: rgba(20, 184, 166, 0.14);
+}
+.dark [class~="bg-amber-50"],
+.dark [class~="bg-amber-50/80"],
+.dark [class~="bg-amber-100"] {
+  background-color: rgba(245, 158, 11, 0.14);
+}
+.dark [class~="bg-orange-50"] {
+  background-color: rgba(249, 115, 22, 0.14);
+}
+.dark [class~="bg-rose-50"],
+.dark [class~="bg-rose-100"] {
+  background-color: rgba(244, 63, 94, 0.14);
+}
+.dark [class~="bg-cyan-50"],
+.dark [class~="bg-cyan-100"] {
+  background-color: rgba(6, 182, 212, 0.14);
+}
+.dark [class~="bg-indigo-50"] {
+  background-color: rgba(99, 102, 241, 0.16);
+}
+
+/* --- text --- */
+.dark [class~="text-slate-900"],
+.dark [class~="text-slate-950"] {
+  color: #f1f5f9;
+}
+.dark [class~="text-slate-800"] {
+  color: #e2e8f0;
+}
+.dark [class~="text-slate-700"] {
+  color: #cbd5e1;
+}
+.dark [class~="text-slate-600"],
+.dark [class~="text-slate-500"] {
+  color: #94a3b8;
+}
+.dark [class~="text-slate-400"] {
+  color: #64748b;
+}
+.dark [class~="text-emerald-700"],
+.dark [class~="text-emerald-800"],
+.dark [class~="text-emerald-900"] {
+  color: #6ee7b7;
+}
+.dark [class~="text-teal-600"],
+.dark [class~="text-teal-700"],
+.dark [class~="text-teal-800"] {
+  color: #5eead4;
+}
+.dark [class~="text-amber-700"],
+.dark [class~="text-amber-800"],
+.dark [class~="text-amber-900"] {
+  color: #fcd34d;
+}
+.dark [class~="text-orange-700"] {
+  color: #fdba74;
+}
+.dark [class~="text-rose-700"],
+.dark [class~="text-rose-800"] {
+  color: #fda4af;
+}
+.dark [class~="text-cyan-700"] {
+  color: #67e8f9;
+}
+.dark [class~="text-indigo-700"] {
+  color: #a5b4fc;
+}
+
+/* --- borders / dividers / rings --- */
+.dark [class~="border-slate-100"],
+.dark [class~="border-slate-200"],
+.dark [class~="border-slate-200/80"],
+.dark [class~="border-slate-200/90"] {
+  border-color: #1e293b;
+}
+.dark [class~="border-slate-300"] {
+  border-color: #334155;
+}
+.dark [class~="border-emerald-100"],
+.dark [class~="border-emerald-200"],
+.dark [class~="border-emerald-200/60"],
+.dark [class~="border-emerald-200/90"] {
+  border-color: rgba(16, 185, 129, 0.35);
+}
+.dark [class~="border-amber-100"],
+.dark [class~="border-amber-200"] {
+  border-color: rgba(245, 158, 11, 0.35);
+}
+.dark [class~="border-rose-100"],
+.dark [class~="border-rose-200"],
+.dark [class~="border-rose-200/80"] {
+  border-color: rgba(244, 63, 94, 0.35);
+}
+.dark [class~="border-cyan-100"],
+.dark [class~="border-cyan-200"] {
+  border-color: rgba(6, 182, 212, 0.35);
+}
+.dark [class~="divide-slate-100"] > * {
+  border-color: #1e293b;
+}
+.dark [class~="ring-white"] {
+  --tw-ring-color: #0f172a;
+}
+
+/* --- light gradients (pastel hero/warning strips) become deep tints --- */
+.dark [class*="from-emerald-50/"] {
+  background-image: none;
+  background-color: #0d1f1d;
+}
+.dark [class*="from-rose-50/"] {
+  background-image: none;
+  background-color: #241a20;
+}
+
+/* --- inline SVG strokes used by the score rings --- */
+.dark circle[stroke="#e2e8f0"] {
+  stroke: #1e293b;
+}
+
+/* --- recharts: axes, grids, legends --- */
+.dark .recharts-text {
+  fill: #94a3b8;
+}
+.dark .recharts-cartesian-grid line,
+.dark .recharts-polar-grid line,
+.dark .recharts-polar-grid-angle line {
+  stroke: #1e293b;
+}
+.dark .recharts-cartesian-axis line {
+  stroke: #334155;
+}
+.dark .recharts-legend-item-text {
+  color: #cbd5e1 !important;
+}
+
+/* --- AI intelligence section (component-specific dark accents) --- */
+.dark .ai-surface {
+  background-color: #0d1526;
+  border-color: #1e293b;
+}
+.dark .ai-surface-muted {
+  background-color: rgba(30, 41, 59, 0.45);
+}
+
+/* Subtle transition, applied only while the theme is switching so that
+   existing hover/transform transitions keep working untouched. */
+html.theme-switching,
+html.theme-switching * {
+  transition: background-color 220ms ease, border-color 220ms ease, color 220ms ease,
+    fill 220ms ease, stroke 220ms ease !important;
 }
 
 /* Custom scrollbars */
@@ -20,6 +233,15 @@
 }
 ::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
+}
+.dark ::-webkit-scrollbar-track {
+  background: #0b1220;
+}
+.dark ::-webkit-scrollbar-thumb {
+  background: #334155;
+}
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: #475569;
 }
 
 /* Print styling for Climate Impact Report */
