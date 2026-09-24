@@ -66,6 +66,27 @@ const isAccepted = (name: string): boolean => {
   return ext === 'xlsx' || ext === 'xls' || ext === 'csv';
 };
 
+const baseName = (name: string): string => name.replace(/\\/g, '/').split('/').pop() || name;
+
+/** A file may be imported only when the backend recognised it, counted rows, and validated them. */
+const isImportable = (info?: ImportFileResult | null): boolean => {
+  if (!info) return false;
+  const dataset = info.dataset ?? info.dataset_type;
+  const rows = info.rows ?? info.rows_received ?? 0;
+  const valid = info.validation
+    ? info.validation.valid
+    : Boolean(info.success) && rows > 0 && (info.validation_errors?.length ?? 0) === 0;
+  return Boolean(dataset) && rows > 0 && valid;
+};
+
+const failureReason = (info: ImportFileResult): string => {
+  const first = info.validation?.errors?.[0] || info.validation_errors?.[0];
+  if (first?.message) {
+    return `${first.row ? `Row ${first.row}: ` : ''}${first.column ? `${first.column} — ` : ''}${first.message}`;
+  }
+  return info.message || info.error || 'This file could not be imported.';
+};
+
 export const DataImportPage: React.FC<DataImportPageProps> = ({ onNavigate, onDataImported, notify }) => {
   const [files, setFiles] = useState<File[]>([]);
   const [stage, setStage] = useState<Stage>('idle');
@@ -127,16 +148,27 @@ export const DataImportPage: React.FC<DataImportPageProps> = ({ onNavigate, onDa
   }, [files]);
 
   const runImport = useCallback(async () => {
-    if (!files.length) return;
+    const ready = files.filter((file) =>
+      isImportable(
+        previews?.find((result) => result.filename === file.name || baseName(result.filename) === baseName(file.name))
+      )
+    );
+    if (!ready.length) {
+      setFailure('Nothing to import. Fix or remove files that were not recognised or failed validation.');
+      setStage('error');
+      return;
+    }
     setStage('importing');
     setFailure(null);
     try {
-      const response = await importDataFiles(files);
+      const response = await importDataFiles(ready);
       setResults(response.results);
+      const failed = response.results.filter((result) => !result.success);
+      const imported = response.results.filter((result) => result.success);
       setSummaryText(response.message);
-      setStage(response.success ? 'completed' : 'error');
-      if (!response.success) {
-        setFailure(`${response.datasets_failed} file(s) could not be imported.`);
+      setStage(imported.length ? 'completed' : 'error');
+      if (failed.length) {
+        setFailure(failed.map((result) => failureReason(result)).join(' '));
       }
       if (response.assessment?.synced) {
         notify(
@@ -145,13 +177,15 @@ export const DataImportPage: React.FC<DataImportPageProps> = ({ onNavigate, onDa
           `${response.assessment.business_id} scored ${response.assessment.overall_score}/100 (${response.assessment.score_label}).`
         );
       }
-      await refreshStatus();
-      onDataImported();
+      if (imported.length) {
+        await refreshStatus();
+        onDataImported();
+      }
     } catch (err: any) {
       setStage('error');
       setFailure(err?.message || 'Import failed.');
     }
-  }, [files, notify, onDataImported, refreshStatus]);
+  }, [files, notify, onDataImported, previews, refreshStatus]);
 
   const clear = () => {
     setFiles([]);
@@ -163,7 +197,18 @@ export const DataImportPage: React.FC<DataImportPageProps> = ({ onNavigate, onDa
     if (inputRef.current) inputRef.current.value = '';
   };
 
-  const previewFor = (name: string): ImportFileResult | undefined => previews?.find((r) => r.filename === name);
+  const previewFor = (name: string): ImportFileResult | undefined =>
+    previews?.find((result) => result.filename === name || baseName(result.filename) === baseName(name));
+
+  // Detect the dataset as soon as files are chosen, so a bad workbook is visible
+  // before the user can click Import.
+  useEffect(() => {
+    if (files.length && stage === 'idle' && !previews) {
+      void preview();
+    }
+  }, [files, stage, previews, preview]);
+
+  const importableFiles = files.filter((file) => isImportable(previewFor(file.name)));
 
   const busy = stage === 'previewing' || stage === 'importing';
   const stageIndex = STAGES.findIndex((s) => s.key === stage);
@@ -280,9 +325,11 @@ export const DataImportPage: React.FC<DataImportPageProps> = ({ onNavigate, onDa
               <tbody>
                 {files.map((file) => {
                   const info = previewFor(file.name);
-                  const invalid = isAccepted(file.name) ? false : true;
-                  const rowErrors = info?.validation_errors?.length ?? 0;
-                  const ok = info ? info.success && rowErrors === 0 : null;
+                  const invalid = !isAccepted(file.name);
+                  const importable = isImportable(info);
+                  const datasetKey = info?.dataset ?? info?.dataset_type ?? null;
+                  const rowCount = info ? (info.rows ?? info.rows_received ?? 0) : null;
+                  const errors = info?.validation?.errors || info?.validation_errors || [];
                   return (
                     <React.Fragment key={file.name}>
                       <tr className="border-b border-slate-50 text-xs">
@@ -294,59 +341,81 @@ export const DataImportPage: React.FC<DataImportPageProps> = ({ onNavigate, onDa
                         </td>
                         <td className="px-3 py-2.5 text-slate-600 whitespace-nowrap">{fileKind(file.name)}</td>
                         <td className="px-3 py-2.5 text-slate-600 whitespace-nowrap">{formatBytes(file.size)}</td>
-                        <td className="px-3 py-2.5 text-slate-700 whitespace-nowrap">
+                        <td className="px-3 py-2.5 text-slate-700">
                           {invalid ? (
                             <span className="text-rose-600 font-semibold">Unsupported format</span>
-                          ) : info ? (
-                            info.dataset_label || <span className="text-rose-600 font-semibold">Not recognised</span>
-                          ) : (
+                          ) : !info ? (
                             <span className="text-slate-400">—</span>
+                          ) : datasetKey ? (
+                            <div>
+                              <span className="font-mono font-semibold text-slate-800">{datasetKey}</span>
+                              {info.sheet && info.sheet !== 'csv' && (
+                                <span className="block text-[10px] text-slate-500">sheet: {info.sheet}</span>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-rose-600 font-semibold">Not recognised</span>
                           )}
                         </td>
                         <td className="px-3 py-2.5 text-right font-mono text-slate-700">
-                          {info ? info.rows_received : '—'}
+                          {rowCount === null ? '—' : rowCount}
                         </td>
-                        <td className="px-5 py-2.5 whitespace-nowrap">
+                        <td className="px-5 py-2.5">
                           {invalid ? (
-                            <span className="inline-flex items-center gap-1 text-rose-600 font-semibold">
+                            <span className="inline-flex items-center gap-1 text-rose-600 font-semibold whitespace-nowrap">
                               <XCircle className="w-3.5 h-3.5" /> Rejected
                             </span>
                           ) : !info ? (
                             <span className="text-slate-400 text-[11px]">Not checked yet</span>
-                          ) : ok ? (
-                            <span className="inline-flex items-center gap-1 text-emerald-700 font-semibold">
+                          ) : importable ? (
+                            <span className="inline-flex items-center gap-1 text-emerald-700 font-semibold whitespace-nowrap">
                               <CheckCircle2 className="w-3.5 h-3.5" /> Valid
                             </span>
                           ) : (
-                            <button
-                              type="button"
-                              onClick={() => setExpanded(expanded === file.name ? null : file.name)}
-                              className="inline-flex items-center gap-1 text-amber-700 font-semibold"
-                            >
-                              <AlertTriangle className="w-3.5 h-3.5" />
-                              {info.rows_rejected || rowErrors} row(s) rejected
-                              {expanded === file.name ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-                            </button>
+                            <div className="max-w-xs">
+                              <button
+                                type="button"
+                                onClick={() => setExpanded(expanded === file.name ? null : file.name)}
+                                className="inline-flex items-center gap-1 text-rose-700 font-semibold"
+                              >
+                                <AlertTriangle className="w-3.5 h-3.5" />
+                                Failed / Needs attention
+                                {expanded === file.name ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                              </button>
+                              <p className="mt-1 text-[11px] text-rose-800 font-medium whitespace-normal">{failureReason(info)}</p>
+                            </div>
                           )}
                         </td>
                       </tr>
-                      {expanded === file.name && info && info.validation_errors?.length > 0 && (
+                      {expanded === file.name && info && !importable && (
                         <tr>
-                          <td colSpan={6} className="px-5 py-3 bg-amber-50/60 border-b border-amber-100">
-                            <ul className="space-y-1">
-                              {info.validation_errors.slice(0, 25).map((error, index) => (
-                                <li key={index} className="text-[11px] text-amber-900 font-medium">
-                                  {error.row ? `Row ${error.row}: ` : ''}
-                                  {error.column ? <span className="font-mono">{error.column}</span> : null}{' '}
-                                  {error.message}
-                                </li>
-                              ))}
-                              {info.validation_errors.length > 25 && (
-                                <li className="text-[11px] text-amber-800">
-                                  …and {info.validation_errors.length - 25} more.
-                                </li>
-                              )}
-                            </ul>
+                          <td colSpan={6} className="px-5 py-3 bg-rose-50/70 border-b border-rose-100">
+                            <p className="text-[11px] text-rose-900 font-semibold">{info.message || info.error}</p>
+                            {info.error_code && (
+                              <p className="text-[10px] font-mono text-rose-700 mt-1">error_code: {info.error_code}</p>
+                            )}
+                            {!!info.available_sheets?.length && (
+                              <p className="text-[10px] text-rose-800 mt-1">
+                                Sheets: {info.available_sheets.map((sheet) => `${sheet.name} (${sheet.role || 'sheet'}, ${sheet.rows ?? 0} rows)`).join('; ')}
+                              </p>
+                            )}
+                            {!!info.detected_columns?.length && (
+                              <p className="text-[10px] text-rose-800 mt-1">Columns: {info.detected_columns.join(', ')}</p>
+                            )}
+                            {errors.length > 0 && (
+                              <ul className="mt-2 space-y-1">
+                                {errors.slice(0, 25).map((error, index) => (
+                                  <li key={index} className="text-[11px] text-rose-900 font-medium">
+                                    {error.row ? `Row ${error.row}: ` : ''}
+                                    {error.column ? <span className="font-mono">{error.column}</span> : null}{' '}
+                                    {error.message}
+                                  </li>
+                                ))}
+                                {errors.length > 25 && (
+                                  <li className="text-[11px] text-rose-800">…and {errors.length - 25} more.</li>
+                                )}
+                              </ul>
+                            )}
                           </td>
                         </tr>
                       )}
@@ -450,9 +519,9 @@ export const DataImportPage: React.FC<DataImportPageProps> = ({ onNavigate, onDa
                   )}
                   <span className="text-slate-700">
                     <span className="font-semibold">{result.filename}</span>
-                    {result.dataset_label ? ` — ${result.dataset_label}` : ''}
-                    {result.rows_imported > 0 ? ` — ${result.rows_imported} rows stored` : ''}
-                    {result.rows_rejected > 0 ? ` — ${result.rows_rejected} rejected` : ''}
+                    {(result.dataset || result.dataset_type) ? ` — ${result.dataset || result.dataset_type}` : ' — not recognised'}
+                    {result.success && result.rows_imported > 0 ? ` — ${result.rows_imported} rows stored` : ''}
+                    {!result.success ? ` — ${failureReason(result)}` : ''}
                   </span>
                 </li>
               ))}

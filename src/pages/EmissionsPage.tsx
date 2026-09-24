@@ -24,6 +24,7 @@ import { AIInsightCard } from '../components/common/AIInsightCard';
 import { EMPTY_STATES } from '../services/defaults';
 import { getEmissionsAnalytics, getMobilityAnalytics } from '../services/api';
 import { PageId } from '../types';
+import { useImportedDataRevision } from '../utils/dataRevision';
 
 interface EmissionsPageProps {
   onNavigate: (page: PageId) => void;
@@ -32,6 +33,7 @@ interface EmissionsPageProps {
 const BAR_COLORS = ['#334155', '#b45309', '#be123c', '#4f46e5'];
 
 export const EmissionsPage: React.FC<EmissionsPageProps> = ({ onNavigate }) => {
+  const importedRevision = useImportedDataRevision();
   const [analytics, setAnalytics] = useState<any>(null);
   const [mobility, setMobility] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -46,7 +48,7 @@ export const EmissionsPage: React.FC<EmissionsPageProps> = ({ onNavigate }) => {
       setLoading(false);
     })();
     return () => { cancelled = true; };
-  }, []);
+  }, [importedRevision]);
 
   const available = analytics?.available === true;
   const breakdown = available ? analytics?.emissions_breakdown_tonnes_co2e_per_month || {} : {};

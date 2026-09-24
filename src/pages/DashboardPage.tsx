@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useImportedDataRevision } from '../utils/dataRevision';
 import {
   Zap,
   Droplets,
@@ -69,6 +70,7 @@ const buildTrend = (snapshots: FingerprintSnapshot[], dimension: string, metricK
 };
 
 export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate, profile, assessment, fingerprint }) => {
+  const importedRevision = useImportedDataRevision();
   const [snapshots, setSnapshots] = useState<FingerprintSnapshot[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(true);
   // Calculated emissions (backend analytics); stays null until the backend has stored data
@@ -87,7 +89,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate, profil
       }
     })();
     return () => { cancelled = true; };
-  }, []);
+  }, [importedRevision]);
 
   useEffect(() => {
     let cancelled = false;

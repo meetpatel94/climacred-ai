@@ -13,12 +13,14 @@ import { AIInsightCard } from '../components/common/AIInsightCard';
 import { EMPTY_STATES } from '../services/defaults';
 import { getMobilityAnalytics, getClimateFingerprint } from '../services/api';
 import { PageId } from '../types';
+import { useImportedDataRevision } from '../utils/dataRevision';
 
 interface MobilityPageProps {
   onNavigate: (page: PageId) => void;
 }
 
 export const MobilityPage: React.FC<MobilityPageProps> = ({ onNavigate }) => {
+  const importedRevision = useImportedDataRevision();
   const [analytics, setAnalytics] = useState<any>(null);
   const [dimension, setDimension] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -33,7 +35,7 @@ export const MobilityPage: React.FC<MobilityPageProps> = ({ onNavigate }) => {
       setLoading(false);
     })();
     return () => { cancelled = true; };
-  }, []);
+  }, [importedRevision]);
 
   const available = analytics?.available === true;
   const vehicles: number | null = available ? analytics?.delivery_vehicles_count ?? null : null;

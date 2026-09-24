@@ -20,6 +20,7 @@ import { AIInsightCard } from '../components/common/AIInsightCard';
 import { EMPTY_STATES } from '../services/defaults';
 import { getWasteAnalytics } from '../services/api';
 import { PageId } from '../types';
+import { useImportedDataRevision } from '../utils/dataRevision';
 
 interface WastePageProps {
   onNavigate: (page: PageId) => void;
@@ -29,6 +30,7 @@ interface WastePageProps {
 const STREAM_COLORS = ['#0f766e', '#0284c7', '#7c3aed', '#d97706', '#e11d48'];
 
 export const WastePage: React.FC<WastePageProps> = ({ onNavigate }) => {
+  const importedRevision = useImportedDataRevision();
   const [analytics, setAnalytics] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
@@ -41,7 +43,7 @@ export const WastePage: React.FC<WastePageProps> = ({ onNavigate }) => {
       setLoading(false);
     })();
     return () => { cancelled = true; };
-  }, []);
+  }, [importedRevision]);
 
   const available = analytics?.available === true;
   const total: number | null = available ? analytics?.total_waste_kg_per_month ?? null : null;

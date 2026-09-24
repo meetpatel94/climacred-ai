@@ -236,7 +236,10 @@ export function App() {
           {currentPage === 'import' && (
             <DataImportPage
               onNavigate={handleNavigate}
-              onDataImported={() => refreshStoredData({ silent: true })}
+              onDataImported={() => {
+                refreshStoredData({ silent: true });
+                window.dispatchEvent(new Event('climacred:data-imported'));
+              }}
               notify={addToast}
             />
           )}

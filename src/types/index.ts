@@ -337,21 +337,49 @@ export interface ImportValidationError {
   message: string;
 }
 
+/** Structured validation result returned with every preview / import file. */
+export interface ImportValidation {
+  valid: boolean;
+  accepted_rows: number;
+  rejected_rows: number;
+  errors: ImportValidationError[];
+}
+
+export interface ImportSheetInfo {
+  name: string;
+  state?: string;
+  empty?: boolean;
+  rows?: number;
+  columns?: string[];
+  role?: string;
+}
+
 /** Per-file outcome of an upload (returned by POST /api/import and /preview). */
 export interface ImportFileResult {
   import_id: string;
   filename: string;
   success: boolean;
   dataset_type: string | null;
+  /** Same value as dataset_type. Present so the UI can show the dataset key. */
+  dataset?: string | null;
   dataset_label: string | null;
   collection: string | null;
   sheet: string | null;
+  extension?: string;
+  rows?: number;
   rows_received: number;
   rows_imported: number;
   rows_inserted?: number;
   rows_updated?: number;
   rows_rejected: number;
+  columns?: string[];
+  detected_columns?: string[];
+  available_sheets?: ImportSheetInfo[];
+  candidate_sheets?: Array<{ sheet: string; dataset: string; rows: number }>;
+  validation?: ImportValidation;
   validation_errors: ImportValidationError[];
+  status?: 'valid' | 'imported' | 'needs_attention' | 'unrecognized' | 'invalid' | string;
+  error_code?: string | null;
   business_ids?: string[];
   stored?: boolean;
   started_at: string;

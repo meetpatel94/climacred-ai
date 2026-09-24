@@ -30,12 +30,14 @@ import {
   FingerprintSnapshot,
 } from '../services/api';
 import { GreenSolution, PageId } from '../types';
+import { useImportedDataRevision } from '../utils/dataRevision';
 
 interface EnergyPageProps {
   onNavigate: (page: PageId) => void;
 }
 
 export const EnergyPage: React.FC<EnergyPageProps> = ({ onNavigate }) => {
+  const importedRevision = useImportedDataRevision();
   const [analytics, setAnalytics] = useState<any>(null);
   const [fingerprint, setFingerprint] = useState<any>(null);
   const [history, setHistory] = useState<FingerprintSnapshot[]>([]);
@@ -59,7 +61,7 @@ export const EnergyPage: React.FC<EnergyPageProps> = ({ onNavigate }) => {
       setLoading(false);
     })();
     return () => { cancelled = true; };
-  }, []);
+  }, [importedRevision]);
 
   const available = analytics?.available === true;
   const monthlyKwh: number | null = available ? analytics?.monthly_electricity_kwh ?? null : null;

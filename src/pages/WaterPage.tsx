@@ -23,12 +23,14 @@ import { AIInsightCard } from '../components/common/AIInsightCard';
 import { EMPTY_STATES } from '../services/defaults';
 import { getWaterAnalytics, getClimateFingerprintHistory, FingerprintSnapshot } from '../services/api';
 import { PageId } from '../types';
+import { useImportedDataRevision } from '../utils/dataRevision';
 
 interface WaterPageProps {
   onNavigate: (page: PageId) => void;
 }
 
 export const WaterPage: React.FC<WaterPageProps> = ({ onNavigate }) => {
+  const importedRevision = useImportedDataRevision();
   const [analytics, setAnalytics] = useState<any>(null);
   const [history, setHistory] = useState<FingerprintSnapshot[]>([]);
   const [loading, setLoading] = useState(true);
@@ -43,7 +45,7 @@ export const WaterPage: React.FC<WaterPageProps> = ({ onNavigate }) => {
       setLoading(false);
     })();
     return () => { cancelled = true; };
-  }, []);
+  }, [importedRevision]);
 
   const available = analytics?.available === true;
   const monthlyLitres: number | null = available ? analytics?.monthly_water_litres ?? null : null;

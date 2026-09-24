@@ -15,6 +15,7 @@ import {
   Loader2,
 } from 'lucide-react';
 import { GreenSolution, PageId } from '../types';
+import { useImportedDataRevision } from '../utils/dataRevision';
 import { EmptyState } from '../components/common/EmptyState';
 import { getGreenSolutions, getRecommendedSolutions } from '../services/api';
 
@@ -38,6 +39,7 @@ export const GreenSolutionsPage: React.FC<GreenSolutionsPageProps> = ({
   onNavigate,
   onSelectSolutionForSimulator,
 }) => {
+  const importedRevision = useImportedDataRevision();
   const [activeCategory, setActiveCategory] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedModalSolution, setSelectedModalSolution] = useState<GreenSolution | null>(null);
@@ -72,7 +74,7 @@ export const GreenSolutionsPage: React.FC<GreenSolutionsPageProps> = ({
     }
     load();
     return () => { cancelled = true; };
-  }, [activeCategory]);
+  }, [activeCategory, importedRevision]);
 
   const filteredSolutions = solutions.filter((s) => {
     const matchesCategory = activeCategory === 'All' || s.category.toLowerCase() === activeCategory.toLowerCase();

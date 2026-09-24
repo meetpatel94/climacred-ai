@@ -33,6 +33,7 @@ import {
 } from '../services/api';
 import { EMPTY_STATES } from '../services/defaults';
 import { GreenSolution, PageId } from '../types';
+import { useImportedDataRevision } from '../utils/dataRevision';
 
 interface ScenarioSimulatorPageProps {
   onNavigate: (page: PageId) => void;
@@ -44,6 +45,7 @@ export const ScenarioSimulatorPage: React.FC<ScenarioSimulatorPageProps> = ({
   initialSelectedSolutionIds = [],
 }) => {
   const [selectedIds, setSelectedIds] = useState<string[]>(initialSelectedSolutionIds);
+  const importedRevision = useImportedDataRevision();
   const [adoptionScalePercent, setAdoptionScalePercent] = useState<number>(100);
   const [solutions, setSolutions] = useState<GreenSolution[]>([]);
   const [backendResult, setBackendResult] = useState<any>(null);
@@ -80,7 +82,7 @@ export const ScenarioSimulatorPage: React.FC<ScenarioSimulatorPageProps> = ({
       });
     })();
     return () => { cancelled = true; };
-  }, []);
+  }, [importedRevision]);
 
   // Simulation always comes from the backend model - no local estimate is invented.
   useEffect(() => {
