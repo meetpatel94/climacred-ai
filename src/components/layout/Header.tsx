@@ -25,10 +25,15 @@ const PAGE_METADATA: Record<PageId, { title: string; description: string; badge?
     title: 'Business Profile & Operations',
     description: 'Configure organization parameters, facility size, shift volume, and production baseline.',
   },
+  import: {
+    title: 'Data Import',
+    description: 'Upload Excel or CSV datasets to build your climate profile, assessment and historical intelligence.',
+    badge: 'Step 1 of 5',
+  },
   assessment: {
     title: 'Climate Assessment Data Collection',
     description: 'Comprehensive resource audit covering Energy, Water, Waste, Emissions, and Mobility.',
-    badge: 'Step 1 of 5',
+    badge: 'Step 2 of 5',
   },
   fingerprint: {
     title: 'Multi-Dimensional Climate Fingerprint',

@@ -261,10 +261,10 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate, profil
               <p className="text-xs font-bold text-slate-900">Climate Readiness</p>
               <p className="text-xs text-slate-600 max-w-[260px]">{EMPTY_STATES.fingerprint}</p>
               <button
-                onClick={() => onNavigate('assessment')}
+                onClick={() => onNavigate('import')}
                 className="text-xs font-bold text-emerald-700 hover:text-emerald-800 hover:underline inline-flex items-center gap-1"
               >
-                <span>Complete Climate Assessment</span>
+                <span>Import Business Data</span>
                 <ArrowRight className="w-3 h-3" />
               </button>
             </div>
@@ -432,8 +432,8 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate, profil
                 icon={ClipboardList}
                 title="No priorities yet"
                 message={EMPTY_STATES.fingerprint}
-                actionLabel="Complete Climate Assessment"
-                onAction={() => onNavigate('assessment')}
+                actionLabel="Import Business Data"
+                onAction={() => onNavigate('import')}
               />
             ) : (
               <div className="space-y-3">

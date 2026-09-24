@@ -315,6 +315,11 @@ def build_context(user_id: str = DEFAULT_USER_ID, history_limit: int = 6) -> Dic
     ][:2]
     fingerprint_history = _fingerprint_history(user_id, history_limit)
     resource_series = _resource_series(user_id, history_limit)
+    # Imported data (Excel/CSV upload) is real measured history, so it takes
+    # precedence over the fingerprint snapshots for trend questions.
+    imported = _imported_context(user_id)
+    if imported["resource_series"]:
+        resource_series = imported["resource_series"]
 
     # "Selected scenario" = latest simulator run, else the deterministic projection of the top 2
     # recommendations (pure engine call, nothing is written to the database).
@@ -356,8 +361,9 @@ def build_context(user_id: str = DEFAULT_USER_ID, history_limit: int = 6) -> Dic
             "improvement_opportunity": _truncate(dim.get("improvementOpportunity"), 160),
         })
 
-    has_history = len(fingerprint_history) > 1 or bool(impact_records)
+    has_history = len(fingerprint_history) > 1 or bool(impact_records) or len(resource_series) > 1
     resource_changes = _resource_changes(resource_series)
+    last_12_months = _resource_changes(resource_series[-12:]) if len(resource_series) > 2 else resource_changes
 
     context: Dict[str, Any] = {
         "generated_at": datetime.now(timezone.utc).isoformat(),
@@ -486,18 +492,90 @@ def build_context(user_id: str = DEFAULT_USER_ID, history_limit: int = 6) -> Dic
             "previous_fingerprints": fingerprint_history[1:],
             "impact_records_count": len(impact_records),
             "scenario_runs_count": len(scenario_history),
-            # Real per-snapshot resource values (from stored fingerprints) used for
-            # period-over-period comparison. Empty when no snapshots are stored.
+            # Real resource values per period, used for period-over-period comparison.
+            # Source is the imported monthly history when the user uploaded it,
+            # otherwise the stored fingerprint snapshots. Empty when neither exists.
             "resource_series": resource_series,
+            "resource_series_source": imported["resource_series_source"],
+            "months_of_history": len(resource_series),
             "resource_changes": resource_changes,
+            "last_12_months": last_12_months,
+            "imported_datasets": imported["datasets"],
             "note": (
-                "Earlier snapshots are available for comparison."
+                "Earlier periods are available for comparison."
                 if has_history
                 else "Only the latest snapshot exists; period comparison and forecasting are limited."
             ),
         },
     }
     return context
+
+
+#: Imported monthly history columns -> the series keys used by ``_resource_changes``.
+_IMPORTED_SERIES_FIELDS = {
+    "electricity_kwh": "energy_kwh_per_month",
+    "water_litres": "water_litres_per_month",
+    "waste_kg": "waste_kg_per_month",
+    "emissions_tco2e": "emissions_tonnes_per_month",
+}
+
+
+def _imported_context(user_id: str) -> Dict[str, Any]:
+    """Everything the imported (Excel/CSV) datasets add to the Gemini context.
+
+    Returns empty structures when nothing was imported, so a database with only
+    hand-entered data behaves exactly as before.
+    """
+    empty = {"resource_series": [], "resource_series_source": "fingerprint_snapshots", "datasets": {}}
+    try:
+        from app.services import import_service
+    except Exception:  # pragma: no cover - defensive
+        return empty
+    business_id = import_service.get_active_business_id()
+    if not business_id:
+        return empty
+
+    counts = {
+        key: get_collection(name).count_documents({"business_id": business_id})
+        for key, name in (
+            ("resource_consumption", "resource_consumption"),
+            ("energy_data", "energy_data"),
+            ("water_data", "water_data"),
+            ("waste_data", "waste_data"),
+            ("emissions_data", "emissions_data"),
+            ("mobility_data", "mobility_data"),
+            ("operations_materials", "operations_materials"),
+            ("historical_climate_data", "historical_climate_data"),
+            ("solution_recommendations", "solution_recommendations"),
+            ("scenarios", "scenarios"),
+            ("transformation_plans", "transformation_plans"),
+            ("before_after_impact", "impact_records"),
+            ("climate_assessments", "climate_assessments"),
+        )
+    }
+    counts = {key: value for key, value in counts.items() if value}
+
+    series: List[Dict[str, Any]] = []
+    cursor = get_collection("historical_climate_data").find({"business_id": business_id}).sort("month", 1).limit(24)
+    for doc in cursor:
+        row: Dict[str, Any] = {
+            "recorded_at": doc.get("month"),
+            "climate_score": doc.get("climate_score"),
+            "mobility_fuel_litres_per_month": None,
+        }
+        for source, target in _IMPORTED_SERIES_FIELDS.items():
+            row[target] = doc.get(source)
+        row["renewable_share_percent"] = doc.get("renewable_share_percent")
+        row["recycling_rate_percent"] = doc.get("recycling_rate_percent")
+        row["water_reuse_rate_percent"] = doc.get("water_reuse_rate_percent")
+        series.append(row)
+    if not series:
+        return {"resource_series": [], "resource_series_source": "fingerprint_snapshots", "datasets": counts}
+    return {
+        "resource_series": series,
+        "resource_series_source": "imported_historical_climate_data",
+        "datasets": counts,
+    }
 
 
 def _resource_series(user_id: str, limit: int) -> List[Dict[str, Any]]:
@@ -843,7 +921,7 @@ async def get_dashboard_insights(user_id: str = DEFAULT_USER_ID, force: bool = F
             "source": None,
             "ai_available": False,
             "notice": NOTICE_NO_DATA,
-            "message": "Complete your Climate Assessment to generate your Climate Intelligence.",
+            "message": "No business data is available yet. Import a business dataset to get climate-specific insights.",
             "insight": None,
         }
 

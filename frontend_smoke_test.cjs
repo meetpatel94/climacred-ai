@@ -350,7 +350,12 @@ async function post(path, body) {
       /AI Climate Intelligence/.test(dash)
     );
   } else {
-    check('Empty dashboard shows a clean empty state', dash.includes('No business climate data yet.') && dash.includes('Complete Climate Assessment'), dash.slice(0, 200));
+    check(
+      'Empty dashboard shows a clean empty state',
+      dash.includes('No business climate data yet.') &&
+        (dash.includes('Import Business Data') || dash.includes('Climate Assessment')),
+      dash.slice(0, 200)
+    );
     check(
       'Empty dashboard resource cards show their empty states',
       ['No energy data yet', 'No water data yet', 'No waste data yet', 'No emissions data yet', 'No mobility data yet'].every((t) => dash.includes(t))
@@ -364,6 +369,7 @@ async function post(path, body) {
   // ------------------------------------------------------------- every page
   const pages = [
     ['Business Profile', 'Business'],
+    ['Data Import', 'Import'],
     ['Climate Assessment', 'Assessment'],
     ['Climate Fingerprint', 'Fingerprint'],
     ['Energy', 'Energy'],

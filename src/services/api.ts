@@ -14,6 +14,11 @@ import {
   AIDashboardInsightsResponse,
   AIChatResponse,
   AIStatusResponse,
+  ImportResponse,
+  ImportPreviewResponse,
+  ImportStatus,
+  ImportAssessmentSync,
+  ImportedBusiness,
 } from '../types';
 
 import { DEFAULT_USER_PREFERENCES } from './defaults';
@@ -687,4 +692,78 @@ export async function forecastConsumption(historicalData: any[], metricKey: stri
   } catch (err: any) {
     return { status: 'insufficient_data', message: err.message };
   }
+}
+
+// ---------------------------------------------------------------------------
+// Data Import (Excel / CSV upload)
+// ---------------------------------------------------------------------------
+// Multipart uploads must NOT carry a JSON Content-Type: the browser has to set the
+// multipart boundary itself. These helpers therefore use fetch directly, but keep
+// the same base URL, timeout and error shape as apiFetch.
+const IMPORT_TIMEOUT_MS = 120000;
+
+async function uploadFiles<T>(path: string, files: File[]): Promise<T> {
+  const form = new FormData();
+  files.forEach((file) => form.append('files', file, file.name));
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), IMPORT_TIMEOUT_MS);
+  try {
+    const res = await fetch(`${getBase()}${path}`, { method: 'POST', body: form, signal: controller.signal });
+    clearTimeout(timeout);
+    let detail: any = null;
+    try {
+      detail = await res.json();
+    } catch {
+      detail = await res.text().catch(() => null);
+    }
+    if (!res.ok) {
+      const inner = typeof detail === 'object' ? detail?.detail : null;
+      const message =
+        typeof inner === 'string'
+          ? inner
+          : Array.isArray(inner)
+          ? inner.map((e: any) => e?.msg || JSON.stringify(e)).join('; ')
+          : inner
+          ? JSON.stringify(inner)
+          : `Import failed (${res.status})`;
+      throw new Error(message);
+    }
+    return detail as T;
+  } catch (err: any) {
+    clearTimeout(timeout);
+    if (err?.name === 'AbortError') throw new Error(`Upload timed out after ${IMPORT_TIMEOUT_MS / 1000}s.`);
+    throw err;
+  }
+}
+
+/** Parse + detect + validate the selected files WITHOUT storing anything. */
+export async function previewImport(files: File[]): Promise<ImportPreviewResponse> {
+  return uploadFiles<ImportPreviewResponse>('/api/import/preview', files);
+}
+
+/** Validate and store the selected files, then refresh the derived data. */
+export async function importDataFiles(files: File[]): Promise<ImportResponse> {
+  return uploadFiles<ImportResponse>('/api/import', files);
+}
+
+/** Datasets the backend can detect, supported formats and the stored row counts. */
+export async function getImportStatus(): Promise<ImportStatus> {
+  return apiFetch<ImportStatus>('/api/import', { timeoutMs: 20000 });
+}
+
+/** Re-derive the Climate Assessment (and Fingerprint) from the imported data. */
+export async function syncAssessmentFromImports(): Promise<ImportAssessmentSync> {
+  return apiFetch<ImportAssessmentSync>('/api/import/sync-assessment', { method: 'POST', timeoutMs: 60000 });
+}
+
+/** Serve a different imported business (B001, B002, ...). */
+export async function activateImportedBusiness(businessId: string): Promise<{ business_id: string; assessment_synced: ImportAssessmentSync }> {
+  return apiFetch(`/api/import/businesses/${encodeURIComponent(businessId)}/activate`, {
+    method: 'POST',
+    timeoutMs: 60000,
+  });
+}
+
+export async function getImportedBusinesses(): Promise<{ active_business_id: string | null; businesses: ImportedBusiness[] }> {
+  return apiFetch('/api/import/businesses', { timeoutMs: 20000 });
 }

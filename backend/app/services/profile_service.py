@@ -182,23 +182,41 @@ def reset_profile(user_id: str = DEFAULT_USER_ID) -> Dict[str, Any]:
     fingerprint (e.g. the old demo score 47.5), plans, scenarios, reports and AI
     caches kept the dashboard populated after a "reset". Now all per-user
     collections are cleared, so GET /api/profile returns null and every module
-    shows its empty state. The shared solution catalog is platform content and
-    is not touched. Nothing is re-created afterwards.
+    shows its empty state.
+
+    Two categories are removed:
+      * documents created through the UI (``user_id`` = this user), and
+      * documents created by the Excel/CSV import (``user_id`` is ``null`` and a
+        ``business_id`` links them), plus the import audit trail and any solution
+        catalog entries that came from an upload.
+    The application's own solution catalog is platform content and is kept.
+    Nothing is re-created afterwards - an empty database stays empty.
     """
     from app.database.collections import USER_DATA_COLLECTIONS
 
     deleted: Dict[str, int] = {}
+    imported: Dict[str, int] = {}
     for key in USER_DATA_COLLECTIONS:
-        result = get_collection(COLLECTIONS[key]).delete_many({"user_id": user_id})
+        col = get_collection(COLLECTIONS[key])
+        result = col.delete_many({"user_id": user_id})
         deleted[key] = int(getattr(result, "deleted_count", 0) or 0)
-    logger.info(f"All stored data cleared for user {user_id}: {deleted}")
+        # Imported rows are keyed by business_id with a null user_id.
+        result = col.delete_many({"user_id": None, "data_origin": "import"})
+        imported[key] = int(getattr(result, "deleted_count", 0) or 0)
+    catalog = get_collection(COLLECTIONS["green_solutions"])
+    imported["green_solutions"] = int(
+        getattr(catalog.delete_many({"data_origin": "import"}), "deleted_count", 0) or 0
+    )
+    total = sum(deleted.values()) + sum(imported.values())
+    logger.info(f"All stored data cleared for user {user_id}: {total} documents ({deleted} + {imported} imported)")
     return {
         "has_data": False,
         "data": None,
         "profile": None,
         "user_id": user_id,
         "deleted": deleted,
-        "message": "All stored business data for this user was deleted. The application is now empty.",
+        "deleted_imported": imported,
+        "message": "All stored business data (including imported datasets) was deleted. The application is now empty.",
     }
 
 def patch_profile(updates: Dict[str, Any], user_id: str = DEFAULT_USER_ID) -> Dict[str, Any]:

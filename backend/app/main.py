@@ -6,7 +6,7 @@ from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from app.config import settings
 from app.database.collections import ensure_indexes
-from app.api.routes import profile, assessment, fingerprint, solutions, scenarios, transformation, impact, reports, ai
+from app.api.routes import profile, assessment, fingerprint, solutions, scenarios, transformation, impact, reports, ai, import_data
 
 # Configure logging
 logging.basicConfig(
@@ -40,6 +40,7 @@ logger.info(f"CORS origins: {origins}")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins if origins != ["*"] else ["*"],
+    allow_origin_regex=r"https?://.*\.e2b\.app(:\d+)?",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -54,7 +55,13 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException):
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
     logger.warning(f"Validation error on {request.url.path}: {exc.errors()}")
-    return JSONResponse(status_code=422, content={"detail": exc.errors(), "body": exc.body})
+    # For multipart uploads (the Data Import endpoints) ``exc.body`` is a FormData
+    # object, which json.dumps cannot serialize - echoing it verbatim turned a clean
+    # 422 into an unhandled 500. Only JSON-safe bodies are echoed back.
+    body = exc.body
+    if not isinstance(body, (dict, list, str, int, float, bool, type(None))):
+        body = f"<{type(body).__name__}>"
+    return JSONResponse(status_code=422, content={"detail": exc.errors(), "body": body})
 
 @app.exception_handler(Exception)
 async def generic_exception_handler(request: Request, exc: Exception):
@@ -97,6 +104,7 @@ async def root():
         "docs": "/docs",
         "endpoints": [
             "/api/profile",
+            "/api/import",
             "/api/assessment",
             "/api/climate-fingerprint",
             "/api/solutions",
@@ -158,6 +166,10 @@ app.include_router(impact.router, prefix="/api/impact/verification")  # for fron
 # Reports
 app.include_router(reports.router, prefix="/api/reports")
 app.include_router(reports.router, prefix="/api/v1/reports")
+# Data Import (Excel/CSV upload -> parse -> validate -> MongoDB). Files are parsed
+# and stored here; they are never forwarded to Gemini.
+app.include_router(import_data.router, prefix="/api/import")
+app.include_router(import_data.router, prefix="/api/v1/import")
 # AI intelligence (Gemini) - reads existing stored data, never exposed to the frontend
 app.include_router(ai.router, prefix="/api/ai")
 app.include_router(ai.router, prefix="/api/v1/ai")

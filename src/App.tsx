@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { PageId, BusinessProfile, ClimateAssessmentData, ClimateFingerprint, TransformationPhaseItem, ImpactVerificationMetric, UserPreferences, ToastMessage } from './types';
 import {
   getBusinessProfile,
@@ -13,13 +13,14 @@ import {
   saveUserPreferences,
 } from './services/api';
 
-import { emptyAssessmentDraft } from './services/defaults';
+import { emptyAssessmentDraft, hasAssessmentData } from './services/defaults';
 import { Sidebar } from './components/layout/Sidebar';
 import { Header } from './components/layout/Header';
 
 import { LandingPage } from './pages/LandingPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { BusinessProfilePage } from './pages/BusinessProfilePage';
+import { DataImportPage } from './pages/DataImportPage';
 import { ClimateAssessmentPage } from './pages/ClimateAssessmentPage';
 import { ClimateFingerprintPage } from './pages/ClimateFingerprintPage';
 import { EnergyPage } from './pages/EnergyPage';
@@ -68,35 +69,41 @@ export function App() {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   };
 
-  // Initial data loading - only real stored data is loaded; missing data stays null
-  // so each page can render its own empty state.
-  useEffect(() => {
-    async function initData() {
-      try {
-        const [profData, assessData, fpData, planData, verifData, prefData] = await Promise.all([
-          getBusinessProfile(),
-          getClimateAssessment(),
-          getClimateFingerprint(),
-          getTransformationPlan(),
-          getImpactVerification(),
-          getUserPreferences(),
-        ]);
+  // Load (or reload) every stored dataset. Only real stored data is loaded; missing
+  // data stays null so each page can render its own empty state. The same function
+  // runs on first mount and after a data import, so the user never has to restart
+  // the frontend to see newly imported data.
+  const refreshStoredData = useCallback(async (options: { silent?: boolean } = {}) => {
+    try {
+      const [profData, assessData, fpData, planData, verifData, prefData] = await Promise.all([
+        getBusinessProfile(),
+        getClimateAssessment(),
+        getClimateFingerprint(),
+        getTransformationPlan(),
+        getImpactVerification(),
+        getUserPreferences(),
+      ]);
 
-        setProfile(profData);
-        setAssessment(assessData);
-        setFingerprint(fpData);
-        setPlan(planData);
-        setVerification(verifData);
-        setPreferences(prefData);
-      } catch (err) {
-        console.error('Failed to load stored business data', err);
+      setProfile(profData);
+      setAssessment(assessData);
+      setFingerprint(fpData);
+      setPlan(planData);
+      setVerification(verifData);
+      setPreferences(prefData);
+    } catch (err) {
+      console.error('Failed to load stored business data', err);
+      if (!options.silent) {
         addToast('error', 'Data Load Error', 'Could not load your stored business data.');
-      } finally {
-        setLoading(false);
       }
+    } finally {
+      setLoading(false);
     }
+  }, []);
 
-    initData();
+  useEffect(() => {
+    refreshStoredData();
+    // Runs once on mount; refreshStoredData() is called explicitly after an import.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleNavigate = (page: PageId) => {
@@ -226,10 +233,25 @@ export function App() {
             />
           )}
 
+          {currentPage === 'import' && (
+            <DataImportPage
+              onNavigate={handleNavigate}
+              onDataImported={() => refreshStoredData({ silent: true })}
+              notify={addToast}
+            />
+          )}
+
           {currentPage === 'fingerprint' && (
             <ClimateFingerprintPage
               fingerprint={fingerprint}
+              hasProfile={Boolean(profile?.name)}
+              hasAssessment={hasAssessmentData(assessment)}
               onNavigate={handleNavigate}
+              onFingerprintGenerated={(generated) => {
+                setFingerprint(generated);
+                refreshStoredData({ silent: true });
+              }}
+              notify={addToast}
             />
           )}
 

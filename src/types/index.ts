@@ -4,6 +4,7 @@ export type PageId =
   | 'landing'
   | 'dashboard'
   | 'profile'
+  | 'import'
   | 'assessment'
   | 'fingerprint'
   | 'energy'
@@ -324,4 +325,116 @@ export interface ToastMessage {
   type: 'success' | 'info' | 'warning' | 'error';
   title: string;
   message?: string;
+}
+
+// ---------------------------------------------------------------------------
+// Data Import (Excel / CSV upload)
+// ---------------------------------------------------------------------------
+/** One row that failed validation, reported with its spreadsheet row number. */
+export interface ImportValidationError {
+  row: number | null;
+  column: string;
+  message: string;
+}
+
+/** Per-file outcome of an upload (returned by POST /api/import and /preview). */
+export interface ImportFileResult {
+  import_id: string;
+  filename: string;
+  success: boolean;
+  dataset_type: string | null;
+  dataset_label: string | null;
+  collection: string | null;
+  sheet: string | null;
+  rows_received: number;
+  rows_imported: number;
+  rows_inserted?: number;
+  rows_updated?: number;
+  rows_rejected: number;
+  validation_errors: ImportValidationError[];
+  business_ids?: string[];
+  stored?: boolean;
+  started_at: string;
+  completed_at: string | null;
+  message: string;
+  error?: string;
+}
+
+export interface ImportResponse {
+  success: boolean;
+  import_id: string;
+  files_received: number;
+  datasets_imported: number;
+  datasets_failed: number;
+  rows_imported: number;
+  rows_rejected: number;
+  results: ImportFileResult[];
+  assessment: ImportAssessmentSync | null;
+  active_business: string | null;
+  message: string;
+}
+
+export interface ImportPreviewResponse {
+  files_received: number;
+  ready_to_import: number;
+  needs_attention: number;
+  rows_received: number;
+  rows_rejected: number;
+  results: ImportFileResult[];
+}
+
+/** Result of re-deriving the Climate Assessment from imported data. */
+export interface ImportAssessmentSync {
+  synced: boolean;
+  business_id?: string;
+  reason?: string;
+  message?: string;
+  overall_score?: number | null;
+  score_label?: string | null;
+  dimension_scores?: Record<string, number | null>;
+  derived_from?: Record<string, string | null>;
+  note?: string;
+}
+
+export interface DatasetSchema {
+  dataset_type: string;
+  label: string;
+  collection: string;
+  description: string;
+  required_columns: string[];
+  optional_columns: string[];
+  unique_key: string[];
+  business_scoped: boolean;
+}
+
+export interface ImportedBusiness {
+  business_id: string;
+  business_name: string | null;
+  industry: string | null;
+  business_size: string | null;
+  location: string | null;
+  employees: number | null;
+  active: boolean;
+  row_counts: Record<string, number>;
+  total_rows: number;
+}
+
+export interface ImportStatus {
+  supported_formats: string[];
+  max_file_mb: number;
+  datasets: DatasetSchema[];
+  recommended_import_order: string[];
+  collections: Record<string, number>;
+  active_business_id: string | null;
+  active_business: {
+    name: string | null;
+    industry: string | null;
+    business_size: string | null;
+    business_id: string | null;
+    data_origin: string | null;
+    import_id: string | null;
+    source: 'imported' | 'developer_seed_script' | 'entered_in_app' | null;
+  } | null;
+  businesses: ImportedBusiness[];
+  recent_imports: ImportFileResult[];
 }

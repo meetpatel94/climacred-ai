@@ -220,7 +220,7 @@ export const AIChatAssistant: React.FC = () => {
                 <div className="space-y-3">
                   <p className="text-xs text-slate-700 leading-relaxed">
                     {hasData === false
-                      ? "No business climate data is stored yet, so I can't analyze your business until you complete your Climate Assessment. You can still ask me how ClimaCred works."
+                      ? "No business data is available yet. Import a business dataset to get climate-specific insights."
                       : 'Ask me anything about your stored ClimaCred data - risks, trends, scores, costs or next steps.'}
                   </p>
                   <div className="space-y-2">
