@@ -9,7 +9,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import { UserPreferences } from '../types';
-import { resetBusinessProfile } from '../services/api';
+import { resetAllStoredData } from '../services/api';
 
 interface SettingsPageProps {
   preferences: UserPreferences;
@@ -174,19 +174,24 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
           <button
             type="button"
             onClick={async () => {
-              if (confirm('Delete your stored business profile? Your assessment data will be kept until you clear it from the assessment page.')) {
+              if (
+                confirm(
+                  'Delete ALL stored business data (profile, assessment, fingerprint, plans, scenarios, reports, impact records and AI chat history)? The app will be empty afterwards. This cannot be undone.'
+                )
+              ) {
                 try {
-                  await resetBusinessProfile();
-                } catch {
-                  // Backend unreachable - nothing is deleted locally either.
+                  await resetAllStoredData();
+                  window.location.reload();
+                } catch (err: any) {
+                  alert(`Reset failed - nothing was deleted: ${err?.message || 'backend unreachable'}`);
                 }
-                window.location.reload();
               }
             }}
+            data-testid="reset-all-data"
             className="text-xs font-semibold text-rose-600 hover:text-rose-700 hover:underline flex items-center gap-1"
           >
             <Trash2 className="w-3.5 h-3.5" />
-            <span>Delete Stored Business Profile</span>
+            <span>Reset All Stored Data</span>
           </button>
         </div>
       </form>

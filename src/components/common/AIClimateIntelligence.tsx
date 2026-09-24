@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Sparkles,
   History,
@@ -12,32 +12,15 @@ import {
   ListChecks,
   Gauge,
   CheckCircle2,
-  ShieldAlert,
   Wand2,
   FileSearch,
+  RefreshCw,
+  PlugZap,
 } from 'lucide-react';
 import { AIDashboardInsightsResponse } from '../../types';
 import { PageId } from '../../types';
 import { getAIDashboardInsights } from '../../services/api';
-
-const SESSION_CACHE_KEY = 'climacred_ai_dashboard_insight';
-
-function readSessionCache(): AIDashboardInsightsResponse | null {
-  try {
-    const raw = window.sessionStorage.getItem(SESSION_CACHE_KEY);
-    return raw ? (JSON.parse(raw) as AIDashboardInsightsResponse) : null;
-  } catch {
-    return null;
-  }
-}
-
-function writeSessionCache(payload: AIDashboardInsightsResponse): void {
-  try {
-    window.sessionStorage.setItem(SESSION_CACHE_KEY, JSON.stringify(payload));
-  } catch {
-    // sessionStorage unavailable - the backend cache still prevents extra AI calls
-  }
-}
+import { refreshGeminiStatus } from '../../services/geminiStatus';
 
 const shortTime = (iso: string): string => {
   try {
@@ -127,39 +110,33 @@ interface AIClimateIntelligenceProps {
  * Gemini-generated interpretation with a full "More Info" explanation on demand.
  */
 export const AIClimateIntelligence: React.FC<AIClimateIntelligenceProps> = ({ onNavigate }) => {
-  // Render the last known insight instantly (session cache), then revalidate in the
-  // background. The backend returns the cached insight unless the stored data changed.
-  const [data, setData] = useState<AIDashboardInsightsResponse | null>(() => readSessionCache());
-  const [loading, setLoading] = useState(() => !readSessionCache());
-  const [failed, setFailed] = useState(false);
+  // Always loaded from the backend (which caches per data signature). Nothing is
+  // cached in browser storage, so an insight about older data can never reappear.
+  const [data, setData] = useState<AIDashboardInsightsResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [requestError, setRequestError] = useState<string | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const drawerRef = useRef<HTMLDivElement | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const fresh = await getAIDashboardInsights();
-        if (cancelled) return;
-        const previous = readSessionCache();
-        if (!previous || previous.data_signature !== fresh.data_signature || previous.source !== fresh.source) {
-          setData(fresh);
-          writeSessionCache(fresh);
-        } else {
-          setData((current) => current ?? fresh);
-        }
-        setFailed(false);
-      } catch (error) {
-        console.warn('AI dashboard insight unavailable', error);
-        if (!cancelled) setFailed(true);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
+  const load = useCallback(async (refresh: boolean) => {
+    setLoading(true);
+    try {
+      const fresh = await getAIDashboardInsights(refresh);
+      setData(fresh);
+      setRequestError(null);
+      if (fresh.status !== 'no_data') void refreshGeminiStatus(false, true);
+    } catch (error: any) {
+      console.warn('AI dashboard insight request failed', error);
+      setData(null);
+      setRequestError(error?.message || 'The ClimaCred backend could not be reached.');
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    void load(false);
+  }, [load]);
 
   useEffect(() => {
     if (!drawerOpen) return;
@@ -171,9 +148,9 @@ export const AIClimateIntelligence: React.FC<AIClimateIntelligenceProps> = ({ on
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [drawerOpen]);
 
-  if (loading && !data) {
+  if (loading) {
     return (
-      <section className="ai-surface bg-white border border-slate-200/90 rounded-2xl p-5 shadow-xs space-y-4" aria-busy="true">
+      <section className="ai-surface bg-white border border-slate-200/90 rounded-2xl p-5 shadow-xs space-y-4" aria-busy="true" data-testid="ai-insight-loading">
         <div className="flex items-center gap-2.5">
           <div className="w-9 h-9 rounded-xl bg-slate-100 animate-pulse" />
           <div className="space-y-1.5">
@@ -187,35 +164,15 @@ export const AIClimateIntelligence: React.FC<AIClimateIntelligenceProps> = ({ on
             <div key={i} className="h-24 bg-slate-100 rounded-xl animate-pulse" />
           ))}
         </div>
-        <p className="text-[11px] text-slate-600">Generating your climate intelligence from the latest stored data…</p>
+        <p className="text-[11px] text-slate-600">Gemini is analyzing your latest stored data…</p>
       </section>
     );
   }
-
-  if (!data) {
-    return (
-      <section className="ai-surface bg-white border border-slate-200/90 rounded-2xl p-5 shadow-xs flex items-start gap-3">
-        <span className="w-9 h-9 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center shrink-0">
-          <AlertTriangle className="w-4 h-4" />
-        </span>
-        <div>
-          <h3 className="text-sm font-extrabold text-slate-900">AI Climate Intelligence</h3>
-          <p className="text-xs text-slate-700 mt-0.5">
-            {failed
-              ? 'AI insights are temporarily unavailable. Calculated values on this dashboard are unaffected.'
-              : 'Preparing climate intelligence from your latest stored data…'}
-          </p>
-        </div>
-      </section>
-    );
-  }
-
-  const { insight, calculated, history, source, notice, model, generated_at } = data;
 
   // Empty database: no insight is produced and no explanation is invented.
-  if (!insight || data.status === 'no_data' || data.has_data === false) {
+  if (data && (data.status === 'no_data' || data.has_data === false)) {
     return (
-      <section className="ai-surface bg-white border border-slate-200/90 rounded-2xl p-5 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      <section className="ai-surface bg-white border border-slate-200/90 rounded-2xl p-5 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3" data-testid="ai-insight-empty">
         <div className="flex items-start gap-3">
           <span className="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-600 via-teal-600 to-emerald-700 text-white flex items-center justify-center shrink-0">
             <Sparkles className="w-4 h-4" />
@@ -223,8 +180,7 @@ export const AIClimateIntelligence: React.FC<AIClimateIntelligenceProps> = ({ on
           <div>
             <h3 className="text-sm font-extrabold text-slate-900 tracking-tight">AI Climate Intelligence</h3>
             <p className="text-xs text-slate-700 mt-0.5">
-              I don&apos;t have your business climate data yet. Complete your Climate Assessment and I&apos;ll analyze it
-              for you.
+              No business climate data yet. Complete your Climate Assessment and Gemini will analyze your actual data.
             </p>
           </div>
         </div>
@@ -237,6 +193,35 @@ export const AIClimateIntelligence: React.FC<AIClimateIntelligenceProps> = ({ on
       </section>
     );
   }
+
+  // Gemini could not produce an insight (or the backend was unreachable): say so, with the reason.
+  if (!data || !data.insight) {
+    const reason = requestError
+      ? `The ClimaCred backend could not be reached (${requestError}).`
+      : data?.message || data?.error?.message || 'Gemini did not return an insight.';
+    return (
+      <section className="ai-surface bg-white border border-slate-200/90 rounded-2xl p-5 shadow-xs flex flex-col sm:flex-row sm:items-start justify-between gap-3" data-testid="ai-insight-unavailable">
+        <div className="flex items-start gap-3 min-w-0">
+          <span className="w-9 h-9 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center shrink-0">
+            <PlugZap className="w-4 h-4" />
+          </span>
+          <div className="min-w-0">
+            <h3 className="text-sm font-extrabold text-slate-900">AI Climate Intelligence — Gemini insight unavailable</h3>
+            <p className="text-xs text-slate-700 mt-0.5 break-words">{reason}</p>
+            <p className="text-[11px] text-slate-600 mt-1">Your calculated metrics on this dashboard come from the backend and are unaffected.</p>
+          </div>
+        </div>
+        <button
+          onClick={() => void load(true)}
+          className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-semibold"
+        >
+          <RefreshCw className="w-3.5 h-3.5" /> Retry
+        </button>
+      </section>
+    );
+  }
+
+  const { insight, calculated, history, model, generated_at } = data;
 
   const details = insight.details;
   const auditWarning = details.number_audit && details.number_audit.verified === false;
@@ -252,10 +237,10 @@ export const AIClimateIntelligence: React.FC<AIClimateIntelligenceProps> = ({ on
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-1.5">
               <h3 className="text-sm font-extrabold text-slate-900 tracking-tight">AI Climate Intelligence</h3>
-              <SourceTag kind={source === 'gemini' ? 'ai' : 'calculated'} />
+              <SourceTag kind="ai" />
             </div>
             <p className="text-[11px] text-slate-600">
-              Based on your latest stored data • {source === 'gemini' ? `Gemini (${model})` : 'ClimaCred Phase 2 engine'}
+              Based on your latest stored data • Gemini{model ? ` (${model})` : ''}
               {generated_at ? ` • ${shortTime(generated_at)}` : ''}
             </p>
           </div>
@@ -267,6 +252,14 @@ export const AIClimateIntelligence: React.FC<AIClimateIntelligenceProps> = ({ on
             Confidence: {insight.confidence}
           </span>
           <button
+            onClick={() => void load(true)}
+            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-semibold transition-colors"
+            title="Regenerate with Gemini"
+            aria-label="Regenerate insight with Gemini"
+          >
+            <RefreshCw className="w-3.5 h-3.5 text-emerald-600" />
+          </button>
+          <button
             onClick={() => setDrawerOpen(true)}
             className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-semibold transition-colors"
             aria-haspopup="dialog"
@@ -276,16 +269,6 @@ export const AIClimateIntelligence: React.FC<AIClimateIntelligenceProps> = ({ on
           </button>
         </div>
       </div>
-
-      {/* Status strip when Gemini is unavailable */}
-      {notice && (
-        <div className="flex items-start gap-2 p-2.5 rounded-xl bg-amber-50 border border-amber-200">
-          <ShieldAlert className="w-3.5 h-3.5 text-amber-700 mt-0.5 shrink-0" />
-          <p className="text-[11px] text-amber-900">
-            {notice}
-          </p>
-        </div>
-      )}
 
       {/* One concise insight */}
       <p className="text-xs sm:text-sm text-slate-700 leading-relaxed">{insight.summary}</p>
@@ -319,7 +302,7 @@ export const AIClimateIntelligence: React.FC<AIClimateIntelligenceProps> = ({ on
           {insight.focus_now && <p className="text-slate-600">{insight.focus_now}</p>}
         </InsightCard>
 
-        <InsightCard icon={TrendingUp} label="Forecast" accent="bg-indigo-50 text-indigo-700">
+        <InsightCard icon={TrendingUp} label="Trend / Forecast" accent="bg-indigo-50 text-indigo-700">
           <p>{insight.forecast}</p>
           <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-slate-600">
             <SourceTag kind="estimated" /> not a guarantee
@@ -332,7 +315,7 @@ export const AIClimateIntelligence: React.FC<AIClimateIntelligenceProps> = ({ on
         <div className="flex items-start gap-2 min-w-0">
           <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 mt-0.5 shrink-0" />
           <p className="text-[11px] text-slate-700 truncate max-w-2xl" title={insight.expected_impact}>
-            <span className="font-bold text-slate-800">Expected impact: </span>
+            <span className="font-bold text-slate-800">Expected Impact: </span>
             {insight.expected_impact}
           </p>
         </div>
@@ -367,7 +350,7 @@ export const AIClimateIntelligence: React.FC<AIClimateIntelligenceProps> = ({ on
                   <Sparkles className="w-4 h-4 text-emerald-600" /> AI Insight — Complete Explanation
                 </h3>
                 <p className="text-[11px] text-slate-600">
-                  {source === 'gemini' ? `Generated by Gemini (${model})` : 'Generated by the ClimaCred calculation engine'}
+                  Generated by Gemini{model ? ` (${model})` : ''}
                   {generated_at ? ` • ${new Date(generated_at).toLocaleString()}` : ''}
                 </p>
               </div>
@@ -421,12 +404,12 @@ export const AIClimateIntelligence: React.FC<AIClimateIntelligenceProps> = ({ on
                 </p>
               </DetailSection>
 
-              <DetailSection icon={Wand2} title="Why Gemini generated this insight" tag={<SourceTag kind={source === 'gemini' ? 'ai' : 'calculated'} />}>
+              <DetailSection icon={Wand2} title="Why Gemini generated this insight" tag={<SourceTag kind="ai" />}>
                 <p>{details.reasoning_summary}</p>
               </DetailSection>
 
               {details.why_it_matters && (
-                <DetailSection icon={Target} title="Why it matters" tag={<SourceTag kind={source === 'gemini' ? 'ai' : 'calculated'} />}>
+                <DetailSection icon={Target} title="Why it matters" tag={<SourceTag kind="ai" />}>
                   <p>{details.why_it_matters}</p>
                 </DetailSection>
               )}
@@ -486,7 +469,7 @@ export const AIClimateIntelligence: React.FC<AIClimateIntelligenceProps> = ({ on
                   <Info className="w-3.5 h-3.5 text-emerald-600" /> How to read this
                 </p>
                 <div className="flex flex-wrap items-center gap-1.5">
-                  <SourceTag kind="calculated" /> <span className="text-[10px] text-slate-600">Phase 2 engine values — the source of truth</span>
+                  <SourceTag kind="calculated" /> <span className="text-[10px] text-slate-600">backend calculations — the source of truth</span>
                   <SourceTag kind="ai" /> <span className="text-[10px] text-slate-600">Gemini interpretation</span>
                   <SourceTag kind="estimated" /> <span className="text-[10px] text-slate-600">catalog-based projection</span>
                 </div>

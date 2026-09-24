@@ -272,7 +272,7 @@ export const EmissionsPage: React.FC<EmissionsPageProps> = ({ onNavigate }) => {
         insight={
           available
             ? 'The ClimaCred AI Assistant can explain which recorded source drives your footprint and which intervention shortens it — using these calculated figures only.'
-            : EMPTY_STATES.chatNoData
+            : EMPTY_STATES.aiNoData
         }
         actionText="Simulate decarbonization options"
         onActionClick={() => onNavigate('simulator')}

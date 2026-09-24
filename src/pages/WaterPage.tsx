@@ -241,7 +241,7 @@ export const WaterPage: React.FC<WaterPageProps> = ({ onNavigate }) => {
         insight={
           available
             ? 'Ask the ClimaCred AI Assistant to explain this water picture, or continue to the solution catalog to see interventions ranked by payback.'
-            : EMPTY_STATES.chatNoData
+            : EMPTY_STATES.aiNoData
         }
         actionText="Open the solution catalog"
         onActionClick={() => onNavigate('solutions')}

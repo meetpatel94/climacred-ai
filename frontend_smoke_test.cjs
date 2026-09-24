@@ -55,10 +55,10 @@ const TEST_ASSESSMENT = {
   },
   waste: {
     organicWasteKgPerMonth: 300,
-    plasticWasteKgPerMonth: 950,
+    plasticWasteKgPerMonth: 900,
     paperWasteKgPerMonth: 400,
-    industrialWasteKgPerMonth: 1850,
-    textileMaterialWasteKgPerMonth: 3600,
+    industrialWasteKgPerMonth: 1700,
+    textileMaterialWasteKgPerMonth: 0,
     currentRecyclingPercent: 30,
     wasteSegregationPracticed: false,
   },
@@ -93,13 +93,17 @@ const TEST_ASSESSMENT = {
 // business data leaked back into the product.
 const FORBIDDEN = [
   'ABC Textile',
-  'Tirupur Cluster',
+  'Tirupur',
+  'abctextiles',
   'Demo / Illustrative Data',
   '485,000',
   '38,500',
   '346,500',
   '480,000',
   '41.2 MT',
+  '47.5/100',
+  '145 Employees',
+  '38,000 sq.ft',
   'Medium SME Demo',
 ];
 
@@ -113,6 +117,10 @@ async function post(path, body) {
 }
 
 (async () => {
+  // What the backend reports about Gemini (the UI must show exactly this state).
+  const aiStatus = await (await fetch(API + '/api/ai/status')).json();
+  console.log(`backend Gemini status: ${aiStatus.status}${aiStatus.model ? ' (' + aiStatus.model + ')' : ''}`);
+
   if (WITH_DATA) {
     await post('/api/profile', TEST_PROFILE);
     await post('/api/assessment', TEST_ASSESSMENT);
@@ -192,6 +200,10 @@ async function post(path, body) {
           return [];
         }
       };
+      // Simulate a browser that still holds data cached by an older build.
+      window.sessionStorage.setItem('climacred_ai_dashboard_insight', JSON.stringify({ status: 'ok', insight: { summary: 'ABC Textile Manufacturing Ltd.' } }));
+      window.sessionStorage.setItem('climacred_ai_chat_session', JSON.stringify([{ role: 'assistant', content: 'ABC Textile' }]));
+      window.localStorage.setItem('climacred_profile', JSON.stringify({ name: 'ABC Textile Manufacturing Ltd.' }));
       window.scrollTo = () => {};
       window.Element.prototype.scrollTo =
         window.Element.prototype.scrollTo || function () {};
@@ -240,6 +252,34 @@ async function post(path, body) {
   // ---------------------------------------------------------------- boot
   const t0 = visibleText();
   check('App boots (no "Initializing" stuck)', !t0.includes('Initializing Climate Intelligence Workspace'), t0.slice(0, 160));
+  check(
+    'Stale browser storage from older builds was removed',
+    window.sessionStorage.getItem('climacred_ai_dashboard_insight') === null &&
+      window.sessionStorage.getItem('climacred_ai_chat_session') === null &&
+      window.localStorage.getItem('climacred_profile') === null
+  );
+
+  // ------------------------------------------------------ Gemini indicator
+  const indicator = doc.querySelector('[data-testid="gemini-status"]');
+  const expectedState = { connected: 'connected', not_configured: 'not_connected', unreachable: 'not_connected' }[aiStatus.status] || 'error';
+  const expectedLabel = { connected: 'Gemini Connected', not_connected: 'Gemini Not Connected', error: 'Gemini Error' }[expectedState];
+  check('Navbar shows the Gemini indicator', !!indicator);
+  check(
+    `Indicator matches GET /api/ai/status (${expectedLabel})`,
+    !!indicator && indicator.getAttribute('data-state') === expectedState && indicator.textContent.includes(expectedLabel),
+    indicator ? `${indicator.getAttribute('data-state')} / ${indicator.textContent.trim()}` : 'missing'
+  );
+  if (indicator) {
+    indicator.click();
+    await sleep(400);
+    const pop = doc.querySelector('[data-testid="gemini-status-popover"]');
+    check(
+      'Indicator popover shows Gemini / Status / Model / Last checked',
+      !!pop && ['Gemini', 'Status:', 'Model:', 'Last checked:'].every((t) => pop.textContent.includes(t))
+    );
+    indicator.click();
+    await sleep(200);
+  }
 
   // ------------------------------------------------ floating chat button
   const fab = doc.querySelector('[data-testid="ai-chat-fab"]');
@@ -260,25 +300,33 @@ async function post(path, body) {
   // Send a message through the real backend
   const input = doc.querySelector('[data-testid="ai-chat-input"]');
   if (input) {
-    input.value = WITH_DATA ? 'What should I do next?' : 'What data do you need from me?';
+    // React ignores direct .value assignment on controlled inputs: use the native
+    // setter so the question is really typed and sent (the previous version never
+    // sent a message and only matched the panel's intro copy).
+    const setValue = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value').set;
+    setValue.call(input, WITH_DATA ? 'What should I do next?' : 'What data do you need from me?');
     input.dispatchEvent(new window.Event('input', { bubbles: true }));
+    await sleep(300);
     const send = doc.querySelector('[data-testid="ai-chat-send"]');
     if (send) send.click();
     await sleep(4000);
   }
   const afterAsk = visibleText();
-  if (WITH_DATA) {
-    check(
-      'Chat answers using stored/calculated data',
-      /kWh|litres|score|VFD|motors|Water/i.test(afterAsk),
-      'no data-based answer text found'
-    );
+  const answers = doc.querySelectorAll('[data-testid="ai-chat-answer"]');
+  const errors = doc.querySelectorAll('[data-testid="ai-chat-error"]');
+  if (aiStatus.status === 'connected') {
+    check('Chat shows the answer returned by Gemini', answers.length > 0, afterAsk.slice(-300));
   } else {
+    // No canned/hardcoded answers: without Gemini the UI must say why there is no answer.
     check(
-      'Chat shows the exact no-data message',
-      afterAsk.includes("I don't have your business climate data yet.") &&
-        afterAsk.includes("Complete your Climate Assessment and I'll analyze it for you."),
-      'no-data copy missing'
+      'Chat shows an explicit "No answer from Gemini" state (no canned reply)',
+      answers.length === 0 && errors.length > 0 && afterAsk.includes('No answer from Gemini'),
+      afterAsk.slice(-300)
+    );
+    check(
+      'Chat error explains the real Gemini status',
+      !!aiStatus.message && afterAsk.includes(aiStatus.message.slice(0, 40)),
+      aiStatus.message
     );
   }
 
@@ -295,12 +343,18 @@ async function post(path, body) {
   if (WITH_DATA) {
     check('Dashboard shows the stored business name', dash.includes(TEST_PROFILE.name));
     check('Dashboard shows the stored electricity figure', dash.includes('21,500') || dash.includes('21500'));
+    // total waste = 300 + 900 + 400 + 1700 + 0 (calculated by the backend)
+    check('Dashboard waste card shows the backend total of all streams', dash.includes('3,300'));
     check(
       'Dashboard shows calculated AI intelligence or its clean notice',
       /AI Climate Intelligence/.test(dash)
     );
   } else {
-    check('Empty dashboard shows a clean empty state', /No business climate data yet|I don.t have your business climate data yet/.test(dash), dash.slice(0, 200));
+    check('Empty dashboard shows a clean empty state', dash.includes('No business climate data yet.') && dash.includes('Complete Climate Assessment'), dash.slice(0, 200));
+    check(
+      'Empty dashboard resource cards show their empty states',
+      ['No energy data yet', 'No water data yet', 'No waste data yet', 'No emissions data yet', 'No mobility data yet'].every((t) => dash.includes(t))
+    );
     check(
       'Empty dashboard shows no fabricated energy figure',
       !dash.includes('38,500') && !dash.includes('3,46,500')

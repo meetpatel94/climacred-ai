@@ -270,7 +270,7 @@ export const MobilityPage: React.FC<MobilityPageProps> = ({ onNavigate }) => {
         insight={
           available
             ? 'Ask the ClimaCred AI Assistant which mobility interventions fit your recorded fleet and budget — it will only use the calculated figures above.'
-            : EMPTY_STATES.chatNoData
+            : EMPTY_STATES.aiNoData
         }
         actionText="Open the solution catalog"
         onActionClick={() => onNavigate('solutions')}

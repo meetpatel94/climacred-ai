@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from app.database.mongodb import get_collection
 from app.database.collections import COLLECTIONS
 from app.services.profile_service import get_profile
-from app.services.assessment_service import get_assessment, has_assessment_data
+from app.services.assessment_service import get_assessment, has_assessment_data, has_business_data
 from app.services.fingerprint_service import get_latest_fingerprint, generate_and_save_fingerprint
 from app.services.solution_service import get_personalized_recommendations
 from app.climate_engine.recommendations import SOLUTION_CATALOG
@@ -153,6 +153,9 @@ def generate_transformation_plan(user_id: str = DEFAULT_USER_ID) -> List[Dict[st
     return plan_items
 
 def get_transformation_plan(user_id: str = DEFAULT_USER_ID) -> List[Dict[str, Any]]:
+    if not has_business_data(user_id):
+        # Never serve a stored plan whose underlying business data no longer exists.
+        return []
     col = get_collection(COLLECTIONS["transformation_plans"])
     doc = col.find_one({"user_id": user_id}, sort=[("updated_at", -1)])
     if not doc:

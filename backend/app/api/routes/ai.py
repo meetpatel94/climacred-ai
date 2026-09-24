@@ -1,98 +1,98 @@
 """
-Gemini AI intelligence routes (Phase 3 + live chat assistant).
+Gemini AI routes.
 
-Endpoints:
-  GET  /api/ai/dashboard-insights  - automatic dashboard insight from stored data
-  GET  /api/ai/status              - is Gemini configured? which model?
-  POST /api/ai/chat                - floating assistant Q&A over the user's stored data
+  GET    /api/ai/status                       real Gemini connection check (cached briefly)
+  POST   /api/ai/chat                         {"message", "conversation_id"} -> {"answer", "provider", "model", "conversation_id"}
+  DELETE /api/ai/chat/{conversation_id}       clear a conversation ("Clear chat")
+  GET    /api/ai/chat/suggestions             starter questions + whether stored data exists
+  GET    /api/ai/dashboard-insights           Gemini insight for the dashboard (auto-loaded)
 
-All data collection and every Gemini call happen server-side, so the API key is
-never exposed to the browser. Raw provider errors are logged, never returned.
+Every Gemini call happens server-side with the key from backend/.env. AI endpoints
+answer HTTP 200 with an explicit "status" field ("ok" / "no_data" / "not_configured" /
+"unreachable" / "error") and a safe message, so the UI can show the exact state
+without the browser logging failed requests. Raw provider errors are only logged.
 """
-from fastapi import APIRouter, Body, HTTPException, Query
-from typing import Any, Dict, List, Optional
 import logging
+from typing import Any, Dict, List, Optional
 
-from app.services.ai_insight_service import get_dashboard_insights, gemini_configured, gemini_model_name
-from app.services.ai_chat_service import answer_question, _chat_suggestions
-from app.config import settings
+from fastapi import APIRouter, Body, HTTPException, Query
+
+from app.services import gemini_client
+from app.services.ai_chat_service import SUGGESTIONS, answer_question, delete_conversation
+from app.services.ai_insight_service import get_dashboard_insights
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["AI Intelligence"])
 
 
-@router.get("/dashboard-insights", summary="AI climate intelligence for the dashboard (auto-loaded)")
+@router.get("/status", summary="Real Gemini connection status (key, verified model, live generateContent)")
+async def ai_status(refresh: bool = Query(False, description="Bypass the short status cache and re-check now")):
+    """
+    - ``not_configured``: GEMINI_API_KEY missing in backend/.env (no network call).
+    - ``connected``: the model was verified via the models API AND a real tiny
+      generateContent request succeeded. A key that merely exists is NOT "connected".
+    - ``unreachable``: the Gemini API could not be reached from the server.
+    - ``error``: Gemini answered with an error (invalid key, model not found /
+      not available to this project, quota, ...) - see ``message`` / ``error_code``.
+    The API key is never part of the response.
+    """
+    return await gemini_client.check_status(force=refresh)
+
+
+@router.post("/chat", summary="ClimaCred AI Assistant (Gemini, grounded in the user's stored data)")
+async def ai_chat(payload: Dict[str, Any] = Body(...)):
+    """
+    Request:  {"message": "What's my biggest climate risk?", "conversation_id": "optional-id"}
+    Response: {"answer": "...", "provider": "gemini", "model": "...", "conversation_id": "...",
+               "status": "ok", "has_data": true, "number_audit": {...}}
+
+    When Gemini cannot answer, ``answer`` is null and ``status``/``message`` say why.
+    Omit ``conversation_id`` to start a new conversation; reuse the returned id for follow-ups.
+    """
+    body = payload or {}
+    message = body.get("message") or body.get("question") or ""
+    conversation_id: Optional[str] = body.get("conversation_id") or body.get("conversationId")
+    history: Optional[List[Dict[str, Any]]] = body.get("history") if isinstance(body.get("history"), list) else None
+    if not str(message).strip():
+        raise HTTPException(status_code=400, detail="Please type a question.")
+    try:
+        return await answer_question(str(message), conversation_id=conversation_id, history=history)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except Exception as exc:  # pragma: no cover - defensive
+        logger.error(f"AI chat failed: {exc}", exc_info=True)
+        raise HTTPException(status_code=500, detail="AI assistant failed unexpectedly (see server log).")
+
+
+@router.delete("/chat/{conversation_id}", summary="Clear one conversation's server-side memory")
+async def ai_chat_clear(conversation_id: str):
+    return {"conversation_id": conversation_id, "cleared": delete_conversation(conversation_id)}
+
+
+@router.get("/chat/suggestions", summary="Suggested starter questions for the chat assistant")
+async def chat_suggestions():
+    from app.services.assessment_service import has_business_data
+
+    return {"has_data": has_business_data(), "suggestions": list(SUGGESTIONS)}
+
+
+@router.get("/dashboard-insights", summary="Gemini climate intelligence for the dashboard (auto-loaded)")
 async def dashboard_insights(
     refresh: bool = Query(False, description="Bypass the cache and regenerate the insight"),
 ):
     """
-    Returns a compact AI insight generated by Gemini from the user's latest stored data.
-
-    - Automatically uses the most recent profile, assessment, fingerprint, analytics,
-      recommendations, scenario, transformation plan and available historical snapshots.
-    - Cached per data-state signature: Gemini is only called again when stored data changes.
-    - With no stored data, returns status="no_data" and insight=null (clean empty state).
-    - Never fails the dashboard: if Gemini is unavailable, a calculated insight is returned
-      with status="unavailable"/"error" and source="calculated".
+    Gemini interpretation of the user's latest stored data (What Changed, Key Risk,
+    What To Do Next, Trend / Forecast, Expected Impact). Cached per data signature.
+    ``status`` is "no_data" (nothing stored, no AI call), "ok", or the Gemini
+    connection problem ("not_configured" / "unreachable" / "error") with ``insight`` null.
     """
     try:
         return await get_dashboard_insights(force=refresh)
     except Exception as exc:  # pragma: no cover - defensive
         logger.error(f"Dashboard AI insight failed: {exc}", exc_info=True)
-        raise HTTPException(status_code=500, detail="AI insights are temporarily unavailable.")
+        raise HTTPException(status_code=500, detail="AI insight failed unexpectedly (see server log).")
 
 
-@router.get("/dashboard-insights/", summary="AI dashboard insights (trailing slash alias)", include_in_schema=False)
-async def dashboard_insights_slash(
-    refresh: bool = Query(False, description="Bypass the cache and regenerate the insight"),
-):
+@router.get("/dashboard-insights/", include_in_schema=False)
+async def dashboard_insights_slash(refresh: bool = Query(False)):
     return await dashboard_insights(refresh=refresh)
-
-
-@router.post("/chat", summary="Gemini chat assistant (uses the user's stored data automatically)")
-async def ai_chat(payload: Dict[str, Any] = Body(...)):
-    """
-    Answer a business/climate question about the user's own ClimaCred data.
-
-    Request body:
-      {
-        "message": "Why is my water impact high?",
-        "history": [{"role": "user"|"assistant", "content": "..."}]   # optional, current session
-      }
-
-    The backend collects the relevant stored context (profile, latest assessment,
-    fingerprint, analytics, recommendations, scenarios, plan, impact) itself - the
-    user never has to paste or repeat data. Follow-up questions work because the
-    current session's turns are forwarded to Gemini along with that context.
-    """
-    message = (payload or {}).get("message") or (payload or {}).get("question") or ""
-    history: Optional[List[Dict[str, Any]]] = (payload or {}).get("history")
-    if history is not None and not isinstance(history, list):
-        history = []
-    try:
-        return await answer_question(str(message), history=history)
-    except Exception as exc:  # pragma: no cover - defensive
-        logger.error(f"AI chat failed: {exc}", exc_info=True)
-        raise HTTPException(status_code=500, detail="AI assistant is temporarily unavailable.")
-
-
-@router.get("/chat/suggestions", summary="Suggested starter questions for the chat assistant")
-async def chat_suggestions():
-    """Starter questions that are answered from the user's real stored data."""
-    from app.services.profile_service import has_profile
-    from app.services.assessment_service import get_assessment, has_assessment_data
-
-    has_data = has_profile() and has_assessment_data(get_assessment())
-    return {"has_data": has_data, "suggestions": _chat_suggestions(has_data)}
-
-
-@router.get("/status", summary="AI layer status (is Gemini configured?)")
-async def ai_status():
-    return {
-        "gemini_configured": gemini_configured(),
-        "model": gemini_model_name(),
-        "model_fallbacks": [m.strip() for m in (settings.GEMINI_MODEL_FALLBACKS or "").split(",") if m.strip()],
-        "cache_minutes": settings.AI_INSIGHT_CACHE_MINUTES,
-        "chat_enabled": True,
-        "note": "The Gemini API key is stored only in the backend environment, never in the browser.",
-    }

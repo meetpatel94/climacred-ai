@@ -3,7 +3,7 @@ from typing import Dict, Any, List, Optional
 from app.database.mongodb import get_collection
 from app.database.collections import COLLECTIONS
 from app.services.profile_service import get_profile
-from app.services.assessment_service import get_assessment, has_assessment_data
+from app.services.assessment_service import get_assessment, has_assessment_data, has_business_data
 from app.climate_engine.fingerprint import generate_fingerprint
 from app.utils.validation import validate_business_profile, validate_assessment_data
 import logging
@@ -12,6 +12,10 @@ logger = logging.getLogger(__name__)
 DEFAULT_USER_ID = "default"
 
 def get_latest_fingerprint(user_id: str = DEFAULT_USER_ID) -> Optional[Dict[str, Any]]:
+    # A fingerprint is derived from the stored profile + assessment. If either was
+    # deleted, a leftover snapshot must not be shown as the current score.
+    if not has_business_data(user_id):
+        return None
     col = get_collection(COLLECTIONS["climate_fingerprints"])
     # Superseded snapshots stay stored as history but are no longer the current one.
     doc = col.find_one({"user_id": user_id, "superseded": {"$ne": True}}, sort=[("created_at", -1)])
@@ -89,6 +93,9 @@ def get_fingerprint_history(user_id: str = DEFAULT_USER_ID, limit: int = 24) -> 
     Each snapshot keeps the calculated dimension metrics that were used at the time,
     so trends are derived from records the user actually submitted.
     """
+    if not has_business_data(user_id):
+        # No current business data -> no history to show (never leftover snapshots).
+        return []
     col = get_collection(COLLECTIONS["climate_fingerprints"])
     cursor = col.find({"user_id": user_id}).sort("created_at", -1).limit(limit)
     snapshots: List[Dict[str, Any]] = []

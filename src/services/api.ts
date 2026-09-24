@@ -1,5 +1,6 @@
-// Centralized API Client for ClimaCred AI (Phase 2 - Full Stack)
-// Connects Phase 1 frontend to FastAPI backend with fallback handling, validation, and error transparency.
+// Centralized API Client for ClimaCred AI.
+// Every business value shown in the UI comes from the FastAPI backend. Nothing is
+// cached in browser storage and nothing is substituted when a request fails.
 
 import {
   BusinessProfile,
@@ -12,6 +13,7 @@ import {
   UserPreferences,
   AIDashboardInsightsResponse,
   AIChatResponse,
+  AIStatusResponse,
 } from '../types';
 
 import { DEFAULT_USER_PREFERENCES } from './defaults';
@@ -31,9 +33,6 @@ const API_TIMEOUT_MS = 8000;
 
 // Helper to get base without trailing slash
 const getBase = () => API_BASE_URL.replace(/\/$/, '');
-
-let cachedProfile: BusinessProfile | null = null;
-let cachedAssessment: ClimateAssessmentData | null = null;
 
 async function apiFetch<T>(path: string, options: RequestInit & { timeoutMs?: number } = {}): Promise<T> {
   const { timeoutMs = API_TIMEOUT_MS, ...requestOptions } = options;
@@ -57,12 +56,15 @@ async function apiFetch<T>(path: string, options: RequestInit & { timeoutMs?: nu
       } catch {
         detail = await res.text();
       }
+      const inner = typeof detail === 'object' ? detail?.detail : null;
       const message =
-        typeof detail === 'object' && detail?.detail
-          ? typeof detail.detail === 'string'
-            ? detail.detail
-            : JSON.stringify(detail.detail)
-          : detail || `Request failed with ${res.status}`;
+        typeof inner === 'string'
+          ? inner
+          : inner && typeof inner === 'object' && typeof inner.message === 'string'
+          ? inner.message
+          : inner
+          ? JSON.stringify(inner)
+          : (typeof detail === 'string' && detail) || `Request failed with ${res.status}`;
       const err: any = new Error(message);
       err.status = res.status;
       err.detail = detail;
@@ -142,8 +144,8 @@ function normalizeSolutions(raw: any): GreenSolution[] {
     investmentMaxInr: s.investmentMaxInr ?? s.investment_max_inr ?? 0,
     potentialAnnualSavingsInr: s.potentialAnnualSavingsInr ?? s.potential_annual_savings_inr ?? 0,
     potentialEnvironmentalImpact: s.potentialEnvironmentalImpact || s.potential_environmental_impact || '',
-    estimatedPaybackPeriodYears: s.estimatedPaybackPeriodYears ?? s.estimated_payback_years ?? 3,
-    implementationDifficulty: s.implementationDifficulty || s.implementation_difficulty || 'Medium',
+    estimatedPaybackPeriodYears: s.estimatedPaybackPeriodYears ?? s.estimated_payback_years ?? null,
+    implementationDifficulty: s.implementationDifficulty || s.implementation_difficulty || null,
     co2ReductionTonnesPerYear: s.co2ReductionTonnesPerYear ?? s.co2_reduction_tonnes_per_year ?? 0,
     resourceReductionValue: s.resourceReductionValue || s.resource_reduction_value || '',
     featured: s.featured || false,
@@ -153,17 +155,14 @@ function normalizeSolutions(raw: any): GreenSolution[] {
 // ---------------------------------------------------------------------------
 // Profile API
 // ---------------------------------------------------------------------------
+/**
+ * Stored business profile, or null when none exists.
+ * Throws when the backend cannot be reached, so the UI can say so instead of
+ * silently showing a stale or empty profile.
+ */
 export async function getBusinessProfile(): Promise<BusinessProfile | null> {
-  try {
-    const raw = await apiFetch<any>('/api/profile');
-    const normalized = normalizeProfile(raw);
-    cachedProfile = normalized;
-    return normalized ? { ...normalized } : null;
-  } catch (err) {
-    console.warn('getBusinessProfile failed', err);
-    // Never fabricate a business profile: return null (or the last known real one).
-    return cachedProfile ? { ...cachedProfile } : null;
-  }
+  const raw = await apiFetch<any>('/api/profile');
+  return normalizeProfile(raw);
 }
 
 export async function saveBusinessProfile(updated: Partial<BusinessProfile>): Promise<BusinessProfile | null> {
@@ -203,40 +202,47 @@ export async function saveBusinessProfile(updated: Partial<BusinessProfile>): Pr
       method: 'PATCH',
       body: JSON.stringify(payload),
     });
-    const normalized = normalizeProfile(raw);
-    cachedProfile = normalized;
-    return normalized ? { ...normalized } : null;
+    return normalizeProfile(raw);
   } catch (err: any) {
     console.error('saveBusinessProfile failed', err);
     throw new Error(err.message || 'Failed to update business profile');
   }
 }
 
-export async function resetBusinessProfile(): Promise<BusinessProfile | null> {
+export interface ResetResult {
+  has_data: false;
+  data: null;
+  profile: null;
+  deleted: Record<string, number>;
+  message: string;
+}
+
+/**
+ * Development reset: deletes ALL stored data of the current user on the backend
+ * (profile, assessment, fingerprints, plans, scenarios, reports, impact records,
+ * AI caches and chat history). Afterwards every module shows its empty state.
+ */
+export async function resetAllStoredData(): Promise<ResetResult> {
   try {
-    const raw = await apiFetch<any>('/api/profile/reset', { method: 'POST' });
-    const normalized = normalizeProfile(raw);
-    cachedProfile = normalized;
-    return normalized ? { ...normalized } : null;
+    const result = await apiFetch<ResetResult>('/api/profile/reset', { method: 'POST' });
+    purgeLegacyBrowserStorage();
+    return result;
   } catch (err: any) {
-    throw new Error(err.message || 'Failed to reset profile');
+    throw new Error(err.message || 'Failed to reset stored data');
   }
 }
+
+/** @deprecated kept for compatibility - use resetAllStoredData(). */
+export const resetBusinessProfile = resetAllStoredData;
 
 // ---------------------------------------------------------------------------
 // Assessment API
 // ---------------------------------------------------------------------------
+/** Stored assessment, or null when none exists. Throws when the backend is unreachable. */
 export async function getClimateAssessment(): Promise<ClimateAssessmentData | null> {
-  try {
-    const raw = await apiFetch<any>('/api/assessment');
-    if (!raw || typeof raw !== 'object') return null;
-    cachedAssessment = JSON.parse(JSON.stringify(raw));
-    return JSON.parse(JSON.stringify(raw));
-  } catch (err) {
-    console.warn('getClimateAssessment failed', err);
-    // No stored assessment -> null (the UI shows an empty state, never demo values).
-    return cachedAssessment ? JSON.parse(JSON.stringify(cachedAssessment)) : null;
-  }
+  const raw = await apiFetch<any>('/api/assessment');
+  if (!raw || typeof raw !== 'object') return null;
+  return raw as ClimateAssessmentData;
 }
 
 export async function saveClimateAssessment(data: ClimateAssessmentData): Promise<{ success: boolean; fingerprint: ClimateFingerprint | null }> {
@@ -246,7 +252,6 @@ export async function saveClimateAssessment(data: ClimateAssessmentData): Promis
       method: 'POST',
       body: JSON.stringify(data),
     });
-    cachedAssessment = JSON.parse(JSON.stringify(data));
     // After assessment, generate fingerprint (invalidated per backend logic)
     let fingerprint: ClimateFingerprint | null;
     try {
@@ -270,8 +275,7 @@ export async function patchClimateAssessment(partial: Partial<ClimateAssessmentD
       method: 'PATCH',
       body: JSON.stringify(partial),
     });
-    cachedAssessment = JSON.parse(JSON.stringify(raw));
-    return JSON.parse(JSON.stringify(raw));
+    return raw as ClimateAssessmentData;
   } catch (err: any) {
     throw new Error(err.message || 'Failed to patch assessment');
   }
@@ -306,7 +310,7 @@ export async function getEnergyAnalytics(): Promise<any> {
   try {
     return await apiFetch<any>('/api/climate-fingerprint/analytics/energy');
   } catch (e) {
-    console.warn('Energy analytics fallback');
+    console.warn('Energy analytics request failed');
     return null;
   }
 }
@@ -497,7 +501,7 @@ export async function getClimateReport(): Promise<any> {
     const raw = await apiFetch<any>('/api/reports/climate');
     return raw;
   } catch (err) {
-    console.warn('getClimateReport fallback');
+    console.warn('Climate report request failed');
     return null;
   }
 }
@@ -535,52 +539,103 @@ export async function getClimateFingerprintHistory(limit = 24): Promise<Fingerpr
 }
 
 // ---------------------------------------------------------------------------
-// Gemini AI dashboard intelligence + chat (Phase 3)
-// The Gemini API key lives only in the backend environment; the browser never
-// sees it. The backend returns a calculated answer when Gemini is unavailable.
+// Gemini (status, dashboard insight, chat). The Gemini API key lives only in
+// backend/.env; the browser only ever talks to these FastAPI endpoints.
 // ---------------------------------------------------------------------------
-export const AI_INSIGHT_TIMEOUT_MS = 30000;
-export const AI_CHAT_TIMEOUT_MS = 30000;
+// The backend waits up to GEMINI_TIMEOUT_SECONDS (default 60 s) for Gemini.
+export const AI_INSIGHT_TIMEOUT_MS = 90000;
+export const AI_CHAT_TIMEOUT_MS = 90000;
+export const AI_STATUS_TIMEOUT_MS = 45000;
 
-export async function getAIDashboardInsights(refresh = false): Promise<AIDashboardInsightsResponse> {
-  const query = refresh ? '?refresh=true' : '';
-  return await apiFetch<AIDashboardInsightsResponse>(`/api/ai/dashboard-insights${query}`, {
-    timeoutMs: AI_INSIGHT_TIMEOUT_MS,
+/** Real connection check performed by the backend (cached briefly server-side). */
+export async function getAIStatus(refresh = false): Promise<AIStatusResponse> {
+  return await apiFetch<AIStatusResponse>(`/api/ai/status${refresh ? '?refresh=true' : ''}`, {
+    timeoutMs: AI_STATUS_TIMEOUT_MS,
   });
 }
 
+// One shared in-flight request: React StrictMode (dev) mounts effects twice, and a
+// second concurrent request would otherwise trigger a second Gemini generation.
+let insightInflight: Promise<AIDashboardInsightsResponse> | null = null;
+
+export async function getAIDashboardInsights(refresh = false): Promise<AIDashboardInsightsResponse> {
+  if (!refresh && insightInflight) return insightInflight;
+  const query = refresh ? '?refresh=true' : '';
+  const request = apiFetch<AIDashboardInsightsResponse>(`/api/ai/dashboard-insights${query}`, {
+    timeoutMs: AI_INSIGHT_TIMEOUT_MS,
+  }).finally(() => {
+    if (insightInflight === request) insightInflight = null;
+  });
+  insightInflight = request;
+  return request;
+}
+
 /**
- * Ask the ClimaCred AI Assistant a question about the user's own stored data.
- * The backend collects the context automatically; the browser only sends the
- * question plus the current session's turns (so follow-ups resolve correctly).
+ * Ask the ClimaCred AI Assistant. The backend gathers the stored business context
+ * itself and keeps the conversation memory server-side under `conversation_id`
+ * (omit it to start a new conversation; reuse the returned id for follow-ups).
  */
-export async function askAIAssistant(
-  message: string,
-  history: { role: 'user' | 'assistant'; content: string }[] = []
-): Promise<AIChatResponse> {
+export async function askAIAssistant(message: string, conversationId?: string | null): Promise<AIChatResponse> {
   return await apiFetch<AIChatResponse>('/api/ai/chat', {
     method: 'POST',
-    body: JSON.stringify({ message, history }),
+    body: JSON.stringify(conversationId ? { message, conversation_id: conversationId } : { message }),
     timeoutMs: AI_CHAT_TIMEOUT_MS,
   });
 }
 
-/** Suggested starter questions (data-aware, generated by the backend). */
-export async function getAIChatSuggestions(): Promise<{ has_data: boolean; suggestions: string[] }> {
-  try {
-    return await apiFetch<{ has_data: boolean; suggestions: string[] }>('/api/ai/chat/suggestions');
-  } catch {
-    return { has_data: false, suggestions: [] };
-  }
+/** "Clear chat": forget the conversation on the server. */
+export async function clearAIConversation(conversationId: string): Promise<void> {
+  await apiFetch<{ cleared: boolean }>(`/api/ai/chat/${encodeURIComponent(conversationId)}`, { method: 'DELETE' });
 }
 
-/** Is the Gemini layer configured on the backend? (no key is ever returned) */
-export async function getAIStatus(): Promise<{ gemini_configured: boolean; model: string } | null> {
+/** Starter questions + whether stored business data exists. */
+export async function getAIChatSuggestions(): Promise<{ has_data: boolean; suggestions: string[] }> {
+  return await apiFetch<{ has_data: boolean; suggestions: string[] }>('/api/ai/chat/suggestions');
+}
+
+// ---------------------------------------------------------------------------
+// Browser storage hygiene
+// ---------------------------------------------------------------------------
+// The only things ClimaCred keeps in the browser are UI preferences
+// (climacred_theme, climacred_preferences). Business data, AI insights and chat
+// transcripts are never stored client-side. Earlier builds cached the AI insight
+// and the chat transcript in sessionStorage; those keys are removed here so stale
+// content from an older build can never repopulate the UI.
+const LEGACY_SESSION_KEYS = ['climacred_ai_dashboard_insight', 'climacred_ai_chat_session'];
+const ALLOWED_LOCAL_KEYS = new Set(['climacred_theme', 'climacred_preferences']);
+const PREFERENCE_FIELDS = ['currency', 'measurementUnit', 'emailAlerts', 'benchmarkSharing', 'theme'];
+
+export function purgeLegacyBrowserStorage(): string[] {
+  const removed: string[] = [];
   try {
-    return await apiFetch<{ gemini_configured: boolean; model: string }>('/api/ai/status');
+    for (const key of LEGACY_SESSION_KEYS) {
+      if (window.sessionStorage.getItem(key) !== null) {
+        window.sessionStorage.removeItem(key);
+        removed.push(`sessionStorage:${key}`);
+      }
+    }
+    for (let i = window.localStorage.length - 1; i >= 0; i -= 1) {
+      const key = window.localStorage.key(i);
+      if (key && key.toLowerCase().startsWith('climacred') && !ALLOWED_LOCAL_KEYS.has(key)) {
+        window.localStorage.removeItem(key);
+        removed.push(`localStorage:${key}`);
+      }
+    }
+    // Preferences may only contain preference fields - never business data.
+    const rawPrefs = window.localStorage.getItem('climacred_preferences');
+    if (rawPrefs) {
+      const parsed = JSON.parse(rawPrefs);
+      const clean: Record<string, unknown> = {};
+      for (const field of PREFERENCE_FIELDS) if (parsed && field in parsed) clean[field] = parsed[field];
+      if (JSON.stringify(clean) !== JSON.stringify(parsed)) {
+        window.localStorage.setItem('climacred_preferences', JSON.stringify(clean));
+        removed.push('localStorage:climacred_preferences (non-preference fields)');
+      }
+    }
   } catch {
-    return null;
+    // Storage unavailable (private mode) - nothing stored, nothing to clean.
   }
+  return removed;
 }
 
 // ---------------------------------------------------------------------------

@@ -28,9 +28,9 @@ import { MetricCard } from '../components/common/MetricCard';
 import { ImpactBadge } from '../components/common/StatusBadge';
 import { AIClimateIntelligence } from '../components/common/AIClimateIntelligence';
 import { EmptyState } from '../components/common/EmptyState';
-import { EMPTY_STATES, formatInrCompact, formatNumber } from '../services/defaults';
+import { EMPTY_STATES, formatInrCompact, formatNumber, hasAssessmentData } from '../services/defaults';
 import { BusinessProfile, ClimateAssessmentData, ClimateFingerprint, PageId } from '../types';
-import { getClimateFingerprintHistory, getEmissionsAnalytics, FingerprintSnapshot } from '../services/api';
+import { getClimateFingerprintHistory, getEmissionsAnalytics, getWasteAnalytics, FingerprintSnapshot } from '../services/api';
 
 interface DashboardPageProps {
   onNavigate: (page: PageId) => void;
@@ -73,6 +73,8 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate, profil
   const [loadingHistory, setLoadingHistory] = useState(true);
   // Calculated emissions (backend analytics); stays null until the backend has stored data
   const [emissionsTonnes, setEmissionsTonnes] = useState<number | null>(null);
+  // Total monthly waste = sum of all reported streams, calculated by the backend
+  const [wasteTotalKg, setWasteTotalKg] = useState<number | null>(null);
   const greeting = getGreeting();
 
   useEffect(() => {
@@ -101,7 +103,19 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate, profil
     return () => { cancelled = true; };
   }, [assessment]);
 
-  const hasBusinessData = Boolean(profile?.name) || Boolean(assessment);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const analytics = await getWasteAnalytics();
+      if (!cancelled) {
+        const total = analytics?.available === false ? null : analytics?.total_waste_kg_per_month ?? null;
+        setWasteTotalKg(hasValue(total) && Number(total) > 0 ? Number(total) : null);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [assessment]);
+
+  const hasBusinessData = Boolean(profile?.name) || hasAssessmentData(assessment);
   const businessName = profile?.name || null;
   const location = profile?.location || null;
   const employees = profile?.employees ?? null;
@@ -185,7 +199,16 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate, profil
                 .join(' • ')}
             </p>
           ) : (
-            <p className="text-xs sm:text-sm text-slate-600 max-w-2xl">{EMPTY_STATES.dashboard}</p>
+            <div className="flex flex-wrap items-center gap-3" data-testid="dashboard-empty-state">
+              <p className="text-xs sm:text-sm text-slate-600 max-w-2xl">{EMPTY_STATES.dashboard}</p>
+              <button
+                onClick={() => onNavigate('assessment')}
+                className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-colors inline-flex items-center gap-1.5"
+              >
+                <span>Complete Climate Assessment</span>
+                <ArrowRight className="w-3 h-3" />
+              </button>
+            </div>
           )}
         </div>
 
@@ -281,15 +304,17 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate, profil
 
         <MetricCard
           title="Waste Impact"
-          value={formatNumber(assessment?.waste.textileMaterialWasteKgPerMonth) ?? '—'}
-          unit={hasValue(assessment?.waste.textileMaterialWasteKgPerMonth) ? 'kg/mo' : undefined}
+          value={wasteTotalKg !== null ? formatNumber(wasteTotalKg) ?? '—' : '—'}
+          unit={wasteTotalKg !== null ? 'kg/mo' : undefined}
           icon={Trash2}
           iconBgColor="bg-emerald-50"
           iconColor="text-emerald-600"
           helperText={
-            hasValue(assessment?.waste.currentRecyclingPercent)
-              ? `${assessment?.waste.currentRecyclingPercent}% currently recycled`
-              : EMPTY_STATES.waste
+            wasteTotalKg === null
+              ? EMPTY_STATES.waste
+              : hasValue(assessment?.waste.currentRecyclingPercent)
+              ? `Total of all streams • ${assessment?.waste.currentRecyclingPercent}% currently recycled`
+              : 'Total of all reported waste streams'
           }
         />
 

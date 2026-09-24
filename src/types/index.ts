@@ -122,8 +122,9 @@ export interface GreenSolution {
   investmentMaxInr: number;
   potentialAnnualSavingsInr: number;
   potentialEnvironmentalImpact: string;
-  estimatedPaybackPeriodYears: number;
-  implementationDifficulty: 'Low' | 'Medium' | 'High';
+  /** null when the catalog entry has no payback figure (never a made-up default) */
+  estimatedPaybackPeriodYears: number | null;
+  implementationDifficulty: 'Low' | 'Medium' | 'High' | null;
   co2ReductionTonnesPerYear: number;
   resourceReductionValue: string;
   featured?: boolean;
@@ -179,8 +180,36 @@ export interface UserPreferences {
   theme: 'light' | 'system';
 }
 
-// --- Gemini AI intelligence layer (Phase 3) ---
-export type AISource = 'gemini' | 'calculated';
+// --- Gemini AI layer ---
+export type AISource = 'gemini';
+
+/** Connection states reported by GET /api/ai/status (plus the UI-only 'checking'). */
+export type GeminiConnectionStatus = 'connected' | 'not_configured' | 'unreachable' | 'error';
+
+export interface AIErrorInfo {
+  code: string;
+  message: string;
+  http_status?: number;
+}
+
+/** GET /api/ai/status - real connection check (no API key is ever included). */
+export interface AIStatusResponse {
+  provider: 'Google Gemini' | string;
+  configured: boolean;
+  authenticated: boolean;
+  model: string | null;
+  status: GeminiConnectionStatus;
+  message: string;
+  checked_at: string;
+  cached?: boolean;
+  api_version?: string;
+  model_source?: 'configured' | 'auto';
+  configured_model?: string | null;
+  error_code?: string;
+  http_status?: number | null;
+  available_models?: string[];
+  latency_ms?: number;
+}
 
 export interface AINumberAudit {
   verified: boolean;
@@ -239,48 +268,53 @@ export interface AIDashboardHistory {
 }
 
 export interface AIDashboardInsightsResponse {
-  status: 'ok' | 'unavailable' | 'error' | 'no_data' | string;
-  source: AISource;
+  /** ok | no_data | not_configured | unreachable | error */
+  status: 'ok' | 'no_data' | GeminiConnectionStatus;
+  source: AISource | null;
   ai_available: boolean;
   /** false when the user has not stored any business climate data yet. */
-  has_data?: boolean;
+  has_data: boolean;
   notice: string | null;
-  message?: string;
-  model: string;
+  /** Safe explanation when no insight could be generated. */
+  message?: string | null;
+  error?: AIErrorInfo | null;
+  model: string | null;
   cached: boolean;
   generated_at: string;
   data_signature: string;
   disclaimer: string;
   calculated: AIDashboardCalculatedValues;
   history: AIDashboardHistory;
-  /** null in the empty-database state (no fabricated insight is returned). */
+  /** Only present when Gemini generated it (never a template or fabricated insight). */
   insight: AIDashboardInsight | null;
 }
 
-// --- Gemini chat assistant (Phase 3 live chat) ---
+// --- Gemini chat assistant ---
 export interface AIChatMessage {
   id: string;
   role: 'user' | 'assistant';
   content: string;
   createdAt: string;
   /** present on assistant messages */
-  source?: AISource;
-  ai_available?: boolean;
+  model?: string | null;
   notice?: string | null;
   pending?: boolean;
   error?: string | null;
 }
 
+/** POST /api/ai/chat -> {answer, provider, model, conversation_id, ...} */
 export interface AIChatResponse {
-  status: 'ok' | 'unavailable' | 'error' | 'invalid' | string;
-  source: AISource;
-  ai_available: boolean;
+  status: 'ok' | GeminiConnectionStatus;
+  answer: string | null;
+  provider: 'gemini';
+  model: string | null;
+  conversation_id: string;
   has_data: boolean;
-  reply: string;
   notice?: string | null;
-  model: string;
+  message?: string | null;
+  error?: AIErrorInfo | null;
+  number_audit?: AINumberAudit;
   generated_at: string;
-  number_audit: AINumberAudit;
   suggestions: string[];
   disclaimer: string;
 }

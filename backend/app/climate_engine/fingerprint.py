@@ -69,7 +69,8 @@ def generate_fingerprint(profile: Dict[str, Any], assessment: Dict[str, Any]) ->
         summary += f"{worst['dimension']} is the highest priority because {worst['primary_cause'].lower()}. "
         if second:
             summary += f"{second['dimension']} follows with {second['primary_cause'].lower()}. "
-        summary += f"Implementing targeted interventions can raise your Climate Readiness to {min(94, int(overall+26))}+."
+        # No invented target score here: projected scores come from the Scenario Simulator's calculation.
+        summary += "Use the Scenario Simulator to calculate how far targeted interventions would raise your Climate Readiness."
     else:
         summary = f"Your business demonstrates balanced resource performance. Highest incremental gain in {worst['dimension']} ({worst['improvement_opportunity'].lower()}). Overall readiness at {label.lower()} indicates ongoing maturity."
 

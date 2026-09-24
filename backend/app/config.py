@@ -1,6 +1,12 @@
-from pydantic_settings import BaseSettings
+from pathlib import Path
 from typing import List
-import os
+
+from pydantic_settings import BaseSettings
+
+# backend/.env is resolved relative to this file, so the key is found no matter
+# which directory uvicorn is started from. Real environment variables still win.
+BACKEND_DIR = Path(__file__).resolve().parent.parent
+ENV_FILE = BACKEND_DIR / ".env"
 
 class Settings(BaseSettings):
     MONGODB_URI: str = "mongodb://localhost:27017"
@@ -13,19 +19,31 @@ class Settings(BaseSettings):
     PETROL_EMISSION_FACTOR_KG_PER_LITRE: float = 2.31
     NATURAL_GAS_EMISSION_FACTOR_KG_PER_KG: float = 2.75
     CALCULATION_VERSION: str = "v1.0.0"
-    # --- Gemini AI intelligence layer (Phase 3) ---
-    # Only the API key needs to be provided in the environment; everything else has a safe default.
+    # --- Gemini AI layer ---------------------------------------------------
+    # GEMINI_API_KEY is read ONLY from backend/.env (or the process environment).
+    # It is never sent to the browser, stored in MongoDB or returned by any API.
     GEMINI_API_KEY: str = ""
-    GEMINI_MODEL: str = "gemini-2.5-flash"
-    # Tried in order when the primary model is not available (e.g. a 404 from the
-    # Google API because the model name/version does not exist for this key).
-    GEMINI_MODEL_FALLBACKS: str = "gemini-2.5-flash,gemini-2.0-flash,gemini-1.5-flash"
+    # Optional. Leave empty to let the backend pick a model that the Gemini API
+    # itself reports as available for this key (models.list -> supportedGenerationMethods
+    # contains "generateContent") AND that passes a real generateContent probe.
+    # If you set a model, it is verified the same way before it is ever used;
+    # an unavailable model is reported by GET /api/ai/status instead of being called blindly.
+    GEMINI_MODEL: str = ""
     GEMINI_API_BASE: str = "https://generativelanguage.googleapis.com/v1beta"
-    GEMINI_TIMEOUT_SECONDS: int = 25
+    # Thinking models (Gemini 2.5 / 3.x) can take a while on large prompts.
+    GEMINI_TIMEOUT_SECONDS: int = 60
+    # GET /api/ai/status performs a real (tiny) Gemini request; results are cached briefly.
+    GEMINI_STATUS_CACHE_SECONDS: int = 300
+    GEMINI_STATUS_ERROR_CACHE_SECONDS: int = 30
     AI_INSIGHT_CACHE_MINUTES: int = 180
     # --- Gemini chat assistant ---
     AI_CHAT_MAX_HISTORY_TURNS: int = 12
     AI_CHAT_MAX_MESSAGE_CHARS: int = 2000
+    # --- Data hygiene -------------------------------------------------------
+    # Older builds auto-inserted an "ABC Textile" demo business into MongoDB.
+    # On startup, documents that match that exact legacy signature are removed
+    # (never user-created data). See app/database/legacy_demo.py.
+    PURGE_LEGACY_DEMO_DATA: bool = True
     # Scoring weights configurable
     WEIGHT_ENERGY: float = 0.20
     WEIGHT_WATER: float = 0.20
@@ -41,7 +59,7 @@ class Settings(BaseSettings):
         return [o.strip() for o in self.CORS_ORIGINS.split(",") if o.strip()]
 
     class Config:
-        env_file = ".env"
+        env_file = str(ENV_FILE)
         env_file_encoding = "utf-8"
         extra = "ignore"
 

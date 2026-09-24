@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, Query
 from typing import Optional
-from app.services.solution_service import get_solutions, get_solution_by_id, get_personalized_recommendations, ensure_solutions_seeded
+from app.services.solution_service import get_solutions, get_solution_by_id, get_personalized_recommendations
 import logging
 
 logger = logging.getLogger(__name__)
@@ -9,7 +9,7 @@ router = APIRouter(tags=["Solutions"])
 @router.get("", summary="List green solutions catalog")
 async def list_solutions(category: Optional[str] = Query(None, description="Filter by category: Energy, Water, Waste, Mobility, Materials, Operations")):
     try:
-        ensure_solutions_seeded()
+        # Served from the in-code catalog; nothing is written to the database on read.
         sols = get_solutions(category)
         return {"solutions": sols, "count": len(sols), "category": category or "All"}
     except Exception as e:

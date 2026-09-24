@@ -59,7 +59,8 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 @app.exception_handler(Exception)
 async def generic_exception_handler(request: Request, exc: Exception):
     logger.error(f"Unhandled error on {request.url.path}: {exc}", exc_info=True)
-    return JSONResponse(status_code=500, content={"detail": "Internal server error", "error": str(exc)})
+    # The exception text stays in the server log; users only get a generic message.
+    return JSONResponse(status_code=500, content={"detail": "Internal server error"})
 
 @app.on_event("startup")
 async def startup_event():
@@ -69,6 +70,20 @@ async def startup_event():
         ensure_indexes()
     except Exception as e:
         logger.warning(f"Could not ensure indexes at startup: {e}")
+    # Nothing is ever seeded at startup. The only data operation here REMOVES the
+    # legacy "ABC Textile" demo documents that older builds auto-inserted.
+    if settings.PURGE_LEGACY_DEMO_DATA:
+        try:
+            from app.database.legacy_demo import purge_on_startup
+            purge_on_startup()
+        except Exception as e:
+            logger.warning(f"Legacy demo data check failed: {e}")
+    from app.services import gemini_client
+    logger.info(
+        "Gemini: %s, model=%s (verified on the first GET /api/ai/status)",
+        "API key configured" if gemini_client.configured() else "GEMINI_API_KEY not set in backend/.env",
+        gemini_client.configured_model() or "auto-select",
+    )
 
 @app.get("/", summary="Health check & API info", tags=["System"])
 async def root():
@@ -89,6 +104,8 @@ async def root():
             "/api/transformation-plan",
             "/api/impact",
             "/api/reports/climate",
+            "/api/ai/status",
+            "/api/ai/chat",
             "/api/ai/dashboard-insights"
         ],
         "disclaimer": "ClimaCred AI scores are decision-support metrics, not official environmental certifications. All estimated metrics expose assumptions."

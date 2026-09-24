@@ -104,11 +104,17 @@ def seed_real_business(profile=None, assessment=None) -> None:
 
 @pytest.fixture(autouse=True)
 def empty_database(monkeypatch):
-    """Every test runs against a truly empty database (no auto-seeded demo data)."""
+    """Every test runs against a truly empty database (no auto-seeded demo data)
+    and with Gemini unconfigured unless a test opts in (see tests/test_ai.py)."""
+    from app.services import gemini_client
+
     monkeypatch.setattr(settings, "GEMINI_API_KEY", "")
+    monkeypatch.setattr(settings, "GEMINI_MODEL", "")
+    gemini_client.reset_status_cache()
     clear_all_data()
     yield
     clear_all_data()
+    gemini_client.reset_status_cache()
 
 
 @pytest.fixture

@@ -2,6 +2,7 @@ import React from 'react';
 import { Menu, Bell, Download, Sparkles, Moon, Sun } from 'lucide-react';
 import { PageId } from '../../types';
 import { useTheme } from '../../utils/theme';
+import { GeminiStatusIndicator } from './GeminiStatusIndicator';
 
 interface HeaderProps {
   currentPage: PageId;
@@ -149,6 +150,9 @@ export const Header: React.FC<HeaderProps> = ({
               <span className="sm:hidden">Report</span>
             </button>
           )}
+
+          {/* Gemini connection indicator - driven by GET /api/ai/status */}
+          <GeminiStatusIndicator />
 
           <div className="h-6 w-[1px] bg-slate-200 mx-1 hidden sm:block" />
 

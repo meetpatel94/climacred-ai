@@ -7,7 +7,7 @@ import logging
 logger = logging.getLogger(__name__)
 DEFAULT_USER_ID = "default"
 
-# For demo, we allow submitting impact data with before/after metrics
+# Users submit their own before/after meter readings; nothing is pre-filled.
 
 def calculate_impact_metrics(before: Dict[str, Any], after: Dict[str, Any]) -> Dict[str, Any]:
     """
