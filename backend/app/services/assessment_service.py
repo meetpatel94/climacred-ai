@@ -59,6 +59,28 @@ def has_assessment_data(assessment: Optional[Dict[str, Any]]) -> bool:
                 return True
     return False
 
+def get_assessment_updated_at(user_id: str = DEFAULT_USER_ID) -> Optional[datetime]:
+    """Timestamp of the stored assessment (used to ignore results derived from older data)."""
+    col = get_collection(COLLECTIONS["climate_assessments"])
+    doc = col.find_one({"user_id": user_id}, {"updated_at": 1}, sort=[("updated_at", -1)])
+    value = (doc or {}).get("updated_at")
+    if isinstance(value, datetime) and value.tzinfo is None:
+        value = value.replace(tzinfo=timezone.utc)
+    return value if isinstance(value, datetime) else None
+
+
+def has_business_data(user_id: str = DEFAULT_USER_ID) -> bool:
+    """True only when the user has BOTH a stored profile and real assessment values.
+
+    Derived documents (fingerprints, plans, scenarios, reports) are calculated from
+    exactly these two inputs, so they are only served while both still exist. This
+    prevents orphaned results (e.g. a leftover demo fingerprint) from resurfacing.
+    """
+    from app.services.profile_service import has_profile
+
+    return has_profile(user_id) and has_assessment_data(get_assessment(user_id))
+
+
 def save_assessment(data: Dict[str, Any], user_id: str = DEFAULT_USER_ID) -> Dict[str, Any]:
     # Validate
     validate_assessment_data(data)

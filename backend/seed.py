@@ -2,15 +2,17 @@
 DEVELOPER / TESTING UTILITY - NOT PART OF NORMAL APPLICATION STARTUP.
 
 Seeds an illustrative demo business ("ABC Textile Manufacturing") for local
-testing of the UI and engines. It must be run explicitly:
+testing of the UI and engines. Nothing in the application imports or runs this
+file: FastAPI startup, MongoDB connection, the frontend and the dashboard never
+seed data. It only runs when a developer executes it explicitly:
 
-    python seed.py --demo
+    python seed.py --demo            # refuses if real user data exists
+    python seed.py --demo --force    # overwrite the stored data of user "default"
 
-The backend never calls this module, so a normal `uvicorn app.main:app` start
-leaves the database empty until the user enters real data.
-
-Note: this script writes clearly-labelled SAMPLE data. Never point it at a
-production database.
+Every document it writes is tagged ``data_origin="developer_seed_script"`` so it
+can never be mistaken for real user data (or for the legacy auto-inserted demo
+data that the backend removes at startup). Remove it again with
+``POST /api/profile/reset``. Never point this script at a production database.
 """
 import os
 import sys
@@ -104,12 +106,31 @@ DEMO_ASSESSMENT = {
     }
 }
 
-def clear_demo_data():
+SEED_TAG = {"data_origin": "developer_seed_script"}
+
+
+def real_user_data_exists() -> bool:
+    """True when user "default" has a profile/assessment that this script did not write."""
     db = get_database()
-    for coll in COLLECTIONS.values():
-        db[coll].delete_many({"user_id": "default"})
-    # Also clear seeded solutions? No, keep solutions
-    print("Cleared demo data for user default")
+    for key in ("business_profiles", "climate_assessments"):
+        if db[COLLECTIONS[key]].find_one({"user_id": "default", "data_origin": {"$ne": SEED_TAG["data_origin"]}}):
+            return True
+    return False
+
+
+def clear_demo_data():
+    from app.database.collections import USER_DATA_COLLECTIONS
+    db = get_database()
+    for key in USER_DATA_COLLECTIONS:
+        db[COLLECTIONS[key]].delete_many({"user_id": "default"})
+    print("Cleared stored data for user default")
+
+
+def tag_seeded_documents():
+    from app.database.collections import USER_DATA_COLLECTIONS
+    db = get_database()
+    for key in USER_DATA_COLLECTIONS:
+        db[COLLECTIONS[key]].update_many({"user_id": "default"}, {"$set": SEED_TAG})
 
 def seed():
     print("Seeding ClimaCred AI SAMPLE data (developer/testing utility)...")
@@ -151,9 +172,10 @@ def seed():
     except Exception as e:
         print(f"  ! Impact seed warning: {e}")
 
-    print("\nDemo seeding complete.")
+    tag_seeded_documents()
+    print("\nDemo seeding complete (all documents tagged data_origin=developer_seed_script).")
     print(" NOTE: This is DEMO data for ABC Textile Manufacturing, clearly labeled as illustrative, not measured real-world data.")
-    print(" Dashboard should work immediately after setup.")
+    print(" Remove it with: curl -X POST http://localhost:8000/api/profile/reset")
 
 if __name__ == "__main__":
     if "--demo" not in sys.argv and "--yes" not in sys.argv:
@@ -161,6 +183,12 @@ if __name__ == "__main__":
             "Refusing to seed sample data without an explicit flag.\n"
             "This utility is for development/testing only.\n"
             "Run: python seed.py --demo"
+        )
+        sys.exit(1)
+    if real_user_data_exists() and "--force" not in sys.argv:
+        print(
+            "Refusing to seed: user 'default' already has real (non-seed) business data.\n"
+            "Seeding would delete it. Re-run with --force only if you really want that."
         )
         sys.exit(1)
     seed()

@@ -36,7 +36,7 @@ def get_personalized_recommendations(user_id: str = DEFAULT_USER_ID, top_n: int 
     recs = generate_recommendations(profile, assessment, fingerprint, top_n=top_n)
     return recs
 
-# Backwards compat for solutions catalog serving via DB? Seed green_solutions collection if empty
+# Developer utility (used only by seed.py): copy the platform catalog into MongoDB. Never called by the API.
 def ensure_solutions_seeded():
     from app.database.mongodb import get_collection
     from app.database.collections import COLLECTIONS

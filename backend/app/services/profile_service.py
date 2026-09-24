@@ -175,12 +175,31 @@ def create_or_update_profile(data: Dict[str, Any], user_id: str = DEFAULT_USER_I
     logger.info(f"Profile upsert for user {user_id}")
     return _serialize_profile(doc)
 
-def reset_profile(user_id: str = DEFAULT_USER_ID) -> Optional[Dict[str, Any]]:
-    """Delete the stored business profile. Returns None (no fabricated default)."""
-    col = get_collection(COLLECTIONS["business_profiles"])
-    col.delete_many({"user_id": user_id})
-    logger.info(f"Stored business profile cleared for user {user_id}")
-    return None
+def reset_profile(user_id: str = DEFAULT_USER_ID) -> Dict[str, Any]:
+    """Development reset: delete EVERY stored document of this user.
+
+    Previously only the business profile was deleted, so the stored assessment,
+    fingerprint (e.g. the old demo score 47.5), plans, scenarios, reports and AI
+    caches kept the dashboard populated after a "reset". Now all per-user
+    collections are cleared, so GET /api/profile returns null and every module
+    shows its empty state. The shared solution catalog is platform content and
+    is not touched. Nothing is re-created afterwards.
+    """
+    from app.database.collections import USER_DATA_COLLECTIONS
+
+    deleted: Dict[str, int] = {}
+    for key in USER_DATA_COLLECTIONS:
+        result = get_collection(COLLECTIONS[key]).delete_many({"user_id": user_id})
+        deleted[key] = int(getattr(result, "deleted_count", 0) or 0)
+    logger.info(f"All stored data cleared for user {user_id}: {deleted}")
+    return {
+        "has_data": False,
+        "data": None,
+        "profile": None,
+        "user_id": user_id,
+        "deleted": deleted,
+        "message": "All stored business data for this user was deleted. The application is now empty.",
+    }
 
 def patch_profile(updates: Dict[str, Any], user_id: str = DEFAULT_USER_ID) -> Dict[str, Any]:
     # Filter allowed fields

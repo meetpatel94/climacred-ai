@@ -12,9 +12,9 @@ engines. It does not replace or duplicate any calculation:
      return structured JSON.
   4. It audits every number returned by Gemini against the calculated values,
      so Gemini can never silently invent figures.
-  5. If Gemini is not configured / fails / is rate limited, the dashboard keeps
-     working with a deterministic "calculated insight" generated from the same
-     Phase 2 outputs.
+  5. If Gemini is not configured / unreachable / failing, the endpoint says so
+     explicitly (status + safe reason). No template text is dressed up as an AI
+     insight; the dashboard's calculated metrics are unaffected.
 
 Everything stays inside the existing FastAPI backend, so GEMINI_API_KEY is
 never exposed to the frontend.
@@ -28,13 +28,13 @@ import re
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Set, Tuple
 
-import httpx
-
 from app.config import settings
+from app.services import gemini_client
+from app.services.gemini_client import GeminiError
 from app.database.mongodb import get_collection
 from app.database.collections import COLLECTIONS
 from app.services.profile_service import get_profile
-from app.services.assessment_service import get_assessment, has_assessment_data
+from app.services.assessment_service import get_assessment, has_assessment_data, get_assessment_updated_at
 from app.services.fingerprint_service import get_or_generate_fingerprint
 from app.services.solution_service import get_personalized_recommendations
 from app.services.transformation_service import get_transformation_plan
@@ -56,15 +56,17 @@ DEFAULT_USER_ID = "default"
 AI_INSIGHT_COLLECTION = COLLECTIONS["ai_insights"]
 
 STATUS_OK = "ok"
-STATUS_UNAVAILABLE = "unavailable"
-STATUS_ERROR = "error"
 STATUS_NO_DATA = "no_data"
+# Gemini problems reuse the connection status vocabulary of GET /api/ai/status.
+STATUS_NOT_CONFIGURED = gemini_client.STATUS_NOT_CONFIGURED
+STATUS_UNREACHABLE = gemini_client.STATUS_UNREACHABLE
+STATUS_ERROR = gemini_client.STATUS_ERROR
 
 # User-facing copy only. Raw provider errors (HTTP codes, model names, quota
 # messages) are logged server-side and never shown in the UI.
-NOTICE_UNAVAILABLE = "AI insights are temporarily unavailable."
 NOTICE_NO_DATA = "No business climate data yet."
 INSUFFICIENT_HISTORY = "Insufficient historical data for a reliable forecast."
+INSUFFICIENT_DATA = "Insufficient data."
 
 DISCLAIMER = (
     "AI-generated interpretation of your calculated ClimaCred data. Values shown are "
@@ -79,13 +81,15 @@ snapshots exist.
 
 HARD RULES (never break these):
 1. NEVER invent, estimate or extrapolate a number. Every numeric value you write must already appear in
-   CONTEXT, or be a direct sum/difference/ranking of values in CONTEXT stated in words.
+   CONTEXT, or be a direct sum/difference/ranking of values in CONTEXT stated in words. Emissions, savings,
+   investment, payback, climate score and percentages come ONLY from CONTEXT (backend calculations).
+   If a number you would need is not in CONTEXT, write exactly "Insufficient data." instead of a number.
 2. Never present AI output as a guaranteed outcome. Use language such as "estimated", "projected", "may".
 3. If CONTEXT.history.has_history is false, you must not compare periods or predict a future value.
    In that case set "forecast" to exactly: "Insufficient historical data for a reliable forecast."
    and say that comparison/forecasting is limited in "summary".
-4. Distinguish clearly: "measured" (user-submitted inputs), "calculated" (Phase 2 deterministic values),
-   "estimated" (potential savings / projected impacts), and "demo" data when CONTEXT marks it so.
+4. Distinguish clearly: "measured" (user-submitted inputs), "calculated" (deterministic backend values) and
+   "estimated" (potential savings / projected impacts from the solution catalog).
 5. Be concise and useful for a business owner: no filler, no repetition, plain English.
 6. Return ONLY a valid JSON object matching the requested schema. No markdown, no commentary.
 
@@ -221,6 +225,59 @@ def _round(value: Any, digits: int = 2) -> Any:
         return value
 
 
+def _as_utc(value: Any) -> Optional[datetime]:
+    """ISO string / datetime -> aware UTC datetime (MongoDB returns naive UTC datetimes)."""
+    if isinstance(value, str):
+        try:
+            value = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except ValueError:
+            return None
+    if not isinstance(value, datetime):
+        return None
+    return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+
+
+def _profile_block(profile: Dict[str, Any]) -> Dict[str, Any]:
+    return {
+        "name": profile.get("business_name") or profile.get("name"),
+        "industry": profile.get("industry"),
+        "business_type": profile.get("business_type") or profile.get("businessType"),
+        "location": profile.get("location"),
+        "employees": profile.get("employees"),
+        "business_size": profile.get("business_size") or profile.get("businessSize"),
+        "facility_area_sqft": profile.get("facility_area_sqft") or profile.get("facilityAreaSqFt"),
+        "operating_hours_per_day": profile.get("operating_hours") or profile.get("operatingHoursPerDay"),
+        "working_days_per_month": profile.get("working_days") or profile.get("workingDaysPerMonth"),
+        "production_volume": profile.get("production_volume") or profile.get("productionVolume"),
+    }
+
+
+def _no_data_context(profile: Dict[str, Any], has_assessment: bool) -> Dict[str, Any]:
+    """Context for a user without complete business data. Contains no metrics at all."""
+    has_profile = bool(profile)
+    if has_profile and not has_assessment:
+        message = (
+            "A business profile is stored, but no Climate Assessment has been completed yet, so there is no "
+            "business climate data (no energy, water, waste, emissions, mobility, score or recommendations)."
+        )
+    else:
+        message = "No business climate data is stored yet. The user has not completed a Climate Assessment."
+    return {
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "data_state": {
+            "has_data": False,
+            "has_business_profile": has_profile,
+            "has_climate_assessment": has_assessment,
+            "has_climate_fingerprint": False,
+            "message": message,
+        },
+        # Only what the user actually entered (if anything) - never placeholder values.
+        "business_profile": _profile_block(profile) if has_profile else None,
+        "history": {"has_history": False, "fingerprint_snapshots": 0, "impact_records_count": 0,
+                    "scenario_runs_count": 0, "note": "No stored business climate data."},
+    }
+
+
 def build_context(user_id: str = DEFAULT_USER_ID, history_limit: int = 6) -> Dict[str, Any]:
     """Collect the user's existing stored data into one compact, prompt-safe context.
 
@@ -230,10 +287,14 @@ def build_context(user_id: str = DEFAULT_USER_ID, history_limit: int = 6) -> Dic
     """
     profile = get_profile(user_id) or {}
     assessment = get_assessment(user_id) or {}
-    fingerprint = get_or_generate_fingerprint(user_id) or {}
     has_profile = bool(profile)
     has_assessment = has_assessment_data(assessment)
     has_data = has_profile and has_assessment
+    if not has_data:
+        # No complete business data: send Gemini NOTHING that could be mistaken for
+        # business metrics (no fingerprint, plan, scenario or impact values).
+        return _no_data_context(profile, has_assessment)
+    fingerprint = get_or_generate_fingerprint(user_id) or {}
 
     energy = calculate_energy_metrics(assessment, profile)
     water = calculate_water_metrics(assessment, profile)
@@ -246,7 +307,12 @@ def build_context(user_id: str = DEFAULT_USER_ID, history_limit: int = 6) -> Dic
     plan_items = get_transformation_plan(user_id) or []
     impact_records = get_impact_records(user_id, limit=5) or []
     impact_metrics = get_latest_impact_as_verification_metrics(user_id) or []
-    scenario_history = get_scenario_history(user_id, limit=2) or []
+    # Only scenario runs simulated against the CURRENT assessment are relevant.
+    assessment_updated_at = get_assessment_updated_at(user_id)
+    scenario_history = [
+        run for run in (get_scenario_history(user_id, limit=5) or [])
+        if not assessment_updated_at or (_as_utc(run.get("created_at")) or assessment_updated_at) >= assessment_updated_at
+    ][:2]
     fingerprint_history = _fingerprint_history(user_id, history_limit)
     resource_series = _resource_series(user_id, history_limit)
 
@@ -295,8 +361,8 @@ def build_context(user_id: str = DEFAULT_USER_ID, history_limit: int = 6) -> Dic
 
     context: Dict[str, Any] = {
         "generated_at": datetime.now(timezone.utc).isoformat(),
-        # Explicit data availability. Gemini (and the deterministic fallback) must
-        # never answer business-specific questions when has_data is false.
+        # Explicit data availability. Gemini must never answer business-specific
+        # questions when has_data is false.
         "data_state": {
             "has_data": has_data,
             "has_business_profile": has_profile,
@@ -310,27 +376,16 @@ def build_context(user_id: str = DEFAULT_USER_ID, history_limit: int = 6) -> Dic
         },
         "data_classification": {
             "measured": "Business profile + climate assessment values submitted by the user.",
-            "calculated": "Deterministic Phase 2 engine outputs (emissions, costs, scores, percentages).",
-            "estimated": "Potential savings / projected impacts derived from catalog assumptions.",
-            "demo": "Illustrative values included only where explicitly labelled 'demo'.",
+            "calculated": "Deterministic backend engine outputs (emissions, costs, scores, percentages).",
+            "estimated": "Potential savings / projected impacts derived from solution-catalog assumptions.",
         },
-        "business_profile": {
-            "name": profile.get("business_name") or profile.get("name"),
-            "industry": profile.get("industry"),
-            "business_type": profile.get("business_type") or profile.get("businessType"),
-            "location": profile.get("location"),
-            "employees": profile.get("employees"),
-            "business_size": profile.get("business_size") or profile.get("businessSize"),
-            "facility_area_sqft": profile.get("facility_area_sqft") or profile.get("facilityAreaSqFt"),
-            "operating_hours_per_day": profile.get("operating_hours") or profile.get("operatingHoursPerDay"),
-            "working_days_per_month": profile.get("working_days") or profile.get("workingDaysPerMonth"),
-            "production_volume": profile.get("production_volume") or profile.get("productionVolume"),
-        },
+        "business_profile": _profile_block(profile),
         "climate_fingerprint": {
             "overall_score": fingerprint.get("overallScore"),
             "score_label": fingerprint.get("scoreLabel"),
             "confidence": fingerprint.get("confidence"),
-            "benchmark_percentile": fingerprint.get("benchmarkPercentile"),
+            # benchmarkPercentile is a modelled heuristic of the user's own score, not a peer
+            # benchmark, so it is not sent to Gemini (it must not be presented as a peer comparison).
             "summary_note": _truncate(fingerprint.get("summaryNote"), 320),
             "top_improvement_dimensions": fingerprint.get("topImprovementDimensions"),
             "dimensions": dimensions,
@@ -536,48 +591,21 @@ def data_signature(context: Dict[str, Any]) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Gemini call (official REST API, server-side only)
+# Gemini call (verified model via app.services.gemini_client, server-side only)
 # ---------------------------------------------------------------------------
 def gemini_configured() -> bool:
-    return bool((settings.GEMINI_API_KEY or "").strip())
+    return gemini_client.configured()
 
 
-def _gemini_base() -> str:
-    """Normalised API base, tolerant of a trailing slash or an accidental /models suffix."""
-    base = (settings.GEMINI_API_BASE or "https://generativelanguage.googleapis.com/v1beta").strip().rstrip("/")
-    if base.endswith("/models"):
-        base = base[: -len("/models")]
-    return base
-
-
-def _candidate_models() -> List[str]:
-    """Configured model first, then the configured fallbacks (401/404-safe).
-
-    A 404 from Google's API is almost always "model not found / not supported for
-    this API version". Trying the configured fallback list (and logging the real
-    error) means a wrong GEMINI_MODEL no longer breaks the AI layer.
-    """
-    primary = (settings.GEMINI_MODEL or "").strip()
-    fallbacks = [m.strip() for m in (settings.GEMINI_MODEL_FALLBACKS or "").split(",") if m.strip()]
-    ordered: List[str] = []
-    for model in [primary, *fallbacks]:
-        if model and model not in ordered:
-            ordered.append(model)
-    return ordered
-
-
-def gemini_model_name() -> str:
-    """Model reported to the UI (the primary configured model)."""
-    return (settings.GEMINI_MODEL or "gemini-2.5-flash").strip()
-
-
-def _gemini_url(model: str) -> str:
-    return f"{_gemini_base()}/models/{model}:generateContent"
+def gemini_model_name() -> Optional[str]:
+    """Model verified by the last real Gemini check/call (None until verified)."""
+    status = gemini_client.last_status() or {}
+    return status.get("model") or gemini_client.configured_model() or None
 
 
 def _gemini_payload(context: Dict[str, Any]) -> Dict[str, Any]:
     user_prompt = (
-        "CONTEXT (all values already calculated by ClimaCred Phase 2 — do not invent numbers):\n"
+        "CONTEXT (all values already calculated by the ClimaCred backend — do not invent numbers):\n"
         f"{json.dumps(context, ensure_ascii=False, default=str)}\n\n"
         "Return ONLY JSON with this exact structure:\n"
         f"{RESPONSE_SCHEMA_HINT}"
@@ -585,12 +613,9 @@ def _gemini_payload(context: Dict[str, Any]) -> Dict[str, Any]:
     return {
         "systemInstruction": {"parts": [{"text": SYSTEM_PROMPT}]},
         "contents": [{"role": "user", "parts": [{"text": user_prompt}]}],
-        "generationConfig": {
-            "temperature": 0.25,
-            "topP": 0.9,
-            "maxOutputTokens": 2048,
-            "responseMimeType": "application/json",
-        },
+        # No temperature override: Gemini 3 models are tuned for their default (1.0).
+        # Generous cap because thinking tokens share the output budget.
+        "generationConfig": {"maxOutputTokens": 8192, "responseMimeType": "application/json"},
     }
 
 
@@ -613,99 +638,18 @@ def _extract_json(text: str) -> Optional[Dict[str, Any]]:
     return None
 
 
-async def call_gemini(
-    context: Dict[str, Any],
-    payload_builder=None,
-    used_models: Optional[List[str]] = None,
-    expect_json: bool = True,
-) -> Tuple[Optional[Any], Optional[str]]:
-    """Call Gemini's generateContent API. Returns (parsed_json, error_reason).
-
-    Never raises, and never leaks the raw provider error to the caller's response
-    body — errors are logged here and only a short reason string is returned for
-    server-side logging.
-    """
-    if not gemini_configured():
-        return None, "GEMINI_API_KEY not configured"
-
-    builder = payload_builder or _gemini_payload
-    timeout = httpx.Timeout(float(settings.GEMINI_TIMEOUT_SECONDS), connect=10.0)
-    headers = {
-        "x-goog-api-key": settings.GEMINI_API_KEY,
-        "Content-Type": "application/json",
-    }
-    last_error: Optional[str] = None
-
-    for model in _candidate_models():
-        if used_models is not None and model not in used_models:
-            used_models.append(model)
-        for attempt in range(2):
-            try:
-                async with httpx.AsyncClient(timeout=timeout) as client:
-                    response = await client.post(_gemini_url(model), headers=headers, json=builder(context))
-                if response.status_code in (429, 500, 502, 503, 504) and attempt == 0:
-                    last_error = f"Gemini transient error {response.status_code}"
-                    logger.warning(f"{last_error} (model={model}); retrying once")
-                    continue
-                if response.status_code == 404:
-                    # Model not found for this API version -> try the next candidate.
-                    detail = (response.text or "")[:300]
-                    last_error = f"Gemini model '{model}' not found (404)"
-                    logger.error(
-                        "%s - POST %s returned 404. Check GEMINI_MODEL. Response: %s",
-                        last_error, _gemini_url(model), detail,
-                    )
-                    break
-                if response.status_code in (401, 403):
-                    last_error = f"Gemini rejected the API key ({response.status_code})"
-                    logger.error(
-                        "%s - GEMINI_API_KEY was rejected by %s. Verify the key in backend/.env",
-                        last_error, _gemini_url(model),
-                    )
-                    return None, last_error
-                if response.status_code != 200:
-                    detail = (response.text or "")[:300]
-                    last_error = f"Gemini API error {response.status_code}"
-                    logger.warning("%s (model=%s): %s", last_error, model, detail)
-                    break
-                data = response.json()
-                candidates = data.get("candidates") or []
-                if not candidates:
-                    reason = (data.get("promptFeedback") or {}).get("blockReason")
-                    last_error = f"Gemini returned no candidate ({reason or 'unknown reason'})"
-                    logger.warning("%s (model=%s)", last_error, model)
-                    break
-                parts = ((candidates[0].get("content") or {}).get("parts")) or []
-                text = "".join(p.get("text", "") for p in parts)
-                if not expect_json:
-                    # Chat replies are plain text.
-                    if not text.strip():
-                        last_error = "Gemini returned an empty response"
-                        logger.warning("%s (model=%s)", last_error, model)
-                        break
-                    if model != gemini_model_name():
-                        logger.info("Gemini responded using fallback model '%s'", model)
-                    return text, None
-                parsed = _extract_json(text)
-                if not parsed:
-                    last_error = "Gemini response was not valid JSON"
-                    logger.warning("%s (model=%s)", last_error, model)
-                    break
-                if model != gemini_model_name():
-                    logger.info("Gemini responded using fallback model '%s'", model)
-                return parsed, None
-            except (httpx.TimeoutException, httpx.TransportError) as exc:
-                last_error = f"Gemini request failed: {exc.__class__.__name__}"
-                logger.warning("%s (model=%s)", last_error, model)
-            except Exception as exc:  # pragma: no cover - defensive
-                last_error = f"Gemini call error: {exc.__class__.__name__}"
-                logger.warning(last_error, exc_info=True)
-                return None, last_error
-    return None, last_error or "Gemini request failed"
+async def generate_insight_json(context: Dict[str, Any]) -> Tuple[Dict[str, Any], "gemini_client.GenerateResult"]:
+    """One real Gemini call with the verified model. Raises GeminiError on any failure."""
+    result = await gemini_client.generate_text(_gemini_payload(context))
+    parsed = _extract_json(result.text)
+    if not isinstance(parsed, dict):
+        logger.warning("Gemini insight was not valid JSON (model=%s, finishReason=%s)", result.model, result.finish_reason)
+        raise GeminiError(gemini_client.INVALID_RESPONSE, "Gemini returned an insight that was not valid JSON. Retry to regenerate it.", model=result.model)
+    return parsed, result
 
 
 # ---------------------------------------------------------------------------
-# Normalisation + deterministic fallback
+# Normalisation of the model output
 # ---------------------------------------------------------------------------
 def _as_text(value: Any, limit: int) -> str:
     return _truncate(value, limit) if value is not None else ""
@@ -769,140 +713,6 @@ def normalize_insight(raw: Dict[str, Any], context: Dict[str, Any]) -> Dict[str,
                 "No earlier snapshot is stored yet, so period-over-period comparison is limited."
             )
 
-    insight["details"]["number_audit"] = audit_numbers(insight, context)
-    return insight
-
-
-def _calculated_insight(context: Dict[str, Any], reason: str) -> Dict[str, Any]:
-    """Deterministic insight used when Gemini is unavailable — Phase 2 outputs only."""
-    fp = context.get("climate_fingerprint", {})
-    dims = fp.get("dimensions") or []
-    top_dim = None
-    for dim in dims:
-        if top_dim is None or (dim.get("score") or 100) < (top_dim.get("score") or 100):
-            top_dim = dim
-    recs = context.get("recommendations") or []
-    top_rec = recs[0] if recs else {}
-    analytics = context.get("calculated_analytics", {})
-    history = context.get("history", {})
-    impact = context.get("impact_verification", {})
-
-    recent_changes: List[str] = []
-    if history.get("has_history"):
-        latest = history.get("latest_fingerprint") or {}
-        previous = (history.get("previous_fingerprints") or [{}])[0]
-        if latest.get("overall_score") is not None and previous.get("overall_score") is not None:
-            delta = round(latest["overall_score"] - previous["overall_score"], 1)
-            direction = "improved" if delta > 0 else "declined" if delta < 0 else "held steady"
-            recent_changes.append(
-                f"Climate readiness {direction} by {abs(delta)} points vs the previous snapshot "
-                f"({previous['overall_score']} → {latest['overall_score']})."
-            )
-        latest_metrics = impact.get("latest_metrics") or []
-        if latest_metrics:
-            first = latest_metrics[0]
-            recent_changes.append(
-                f"Latest verified impact on {first.get('metric')}: {first.get('change_percent')}% change "
-                f"({first.get('before')} → {first.get('after')})."
-            )
-    if not recent_changes:
-        recent_changes = [
-            "Only one stored snapshot is available, so no reliable change comparison can be shown yet.",
-            "Update your Climate Assessment to create the next comparable snapshot.",
-        ]
-
-    forecast = INSUFFICIENT_HISTORY
-    comparison = "No earlier snapshot is stored yet, so period-over-period comparison is limited."
-    if history.get("has_history"):
-        comparison = f"{history.get('fingerprint_snapshots')} stored fingerprint snapshots were compared."
-        forecast = "Trend direction is derived from your stored snapshots; a longer history improves accuracy."
-
-    energy = analytics.get("energy", {})
-    water = analytics.get("water", {})
-    insight = {
-        "summary": _truncate(
-            fp.get("summary_note")
-            or "Your latest calculated climate data has been summarised from the Phase 2 engine.",
-            320,
-        ),
-        "recent_changes": recent_changes,
-        "key_risk": _truncate(
-            (top_dim or {}).get("primary_cause")
-            or "Highest-impact resource inefficiency identified by the Climate Fingerprint.",
-            280,
-        ),
-        "focus_now": _truncate(
-            f"{(top_dim or {}).get('dimension', 'Resource efficiency')} is the weakest dimension "
-            f"({(top_dim or {}).get('score')}/100).",
-            260,
-        ),
-        "priority_action": _truncate(
-            f"Start with: {top_rec['title']}" if top_rec.get("title") else "Generate your transformation plan.",
-            280,
-        ),
-        "forecast": forecast,
-        "expected_impact": _truncate(
-            "Estimated: "
-            + (top_rec.get("resource_reduction") or "resource reduction per the solution catalog")
-            + (
-                f" • ₹{int(top_rec['annual_savings_inr']):,} potential annual savings"
-                if top_rec.get("annual_savings_inr")
-                else ""
-            ),
-            300,
-        ),
-        "confidence": str(fp.get("confidence") or "Medium").title(),
-        "details": {
-            "data_used": [
-                "Business profile (stored)",
-                "Latest climate assessment (stored)",
-                f"Climate fingerprint score {fp.get('overall_score')}/100",
-                f"Energy {energy.get('monthly_kwh')} kWh/month",
-                f"Water {water.get('monthly_litres')} litres/month",
-                "Phase 2 recommendations + transformation plan",
-            ],
-            "reasoning_summary": (
-                "Gemini was not used for this insight, so it was composed deterministically from "
-                "ClimaCred's Phase 2 fingerprint, analytics and recommendation outputs. Every figure "
-                "matches your calculated data. (The technical reason is recorded in the server log.)"
-            ),
-            "historical_comparison": comparison,
-            "why_it_matters": _truncate(
-                (
-                    f"{(top_dim or {}).get('dimension', 'This dimension')} is your lowest-scoring dimension "
-                    f"({(top_dim or {}).get('score')}/100). {(top_dim or {}).get('primary_cause') or ''} "
-                    "Improving it lowers operating cost, regulatory exposure and buyer audit risk."
-                ).strip(),
-                500,
-            ),
-            "main_risks": _as_list(
-                [d.get("primary_cause") for d in dims[:3]] or ["Data completeness limits analysis depth."],
-                limit=3,
-            ),
-            "recommended_actions": _as_list(
-                [r.get("title") for r in recs[:3]] or ["Complete the Climate Assessment to unlock recommendations."],
-                limit=3,
-            ),
-            "related_recommendations": _as_list(
-                [f"{r.get('solution_id')} — {r.get('title')}" for r in recs[:3]],
-                limit=5,
-                item_limit=160,
-            ),
-            "expected_impact_detail": _truncate(top_rec.get("reason"), 500)
-            or "Estimated impact is available once recommendations are generated.",
-            "confidence_note": (
-                f"Data completeness {analytics.get('data_quality', {}).get('completeness_percent')}% "
-                f"({analytics.get('data_quality', {}).get('level')}). "
-                "Calculated values are deterministic; potential savings are estimates."
-            ),
-            "assumptions": [
-                "Potential savings, investment and payback come from the ClimaCred solution catalog and are estimates.",
-                "Emission factors are configurable defaults, not certified accounting values.",
-                "No AI model was called for this insight.",
-            ],
-        },
-    }
-    # The calculated insight is deterministic, so the audit must always pass.
     insight["details"]["number_audit"] = audit_numbers(insight, context)
     return insight
 
@@ -994,19 +804,21 @@ def _dashboard_calculated_values(context: Dict[str, Any]) -> Dict[str, Any]:
 
 async def get_dashboard_insights(user_id: str = DEFAULT_USER_ID, force: bool = False) -> Dict[str, Any]:
     """
-    Build (or return the cached) dashboard AI insight from the user's latest stored data.
+    Build (or return the cached) Gemini dashboard insight from the user's latest stored data.
 
-    Always returns a usable payload:
-      * has_data=false  -> clean empty state (no AI call, no fabricated content)
-      * Gemini ok       -> Gemini interpretation of the calculated context
-      * Gemini missing/failing -> deterministic calculated insight + clean notice
-        (the raw provider error is logged only, never returned to the browser).
+    Exactly one of these outcomes, never a hidden third state:
+      * has_data=false            -> status "no_data", insight null, no AI call, nothing invented
+      * Gemini answered           -> status "ok", source "gemini", the verified model name
+      * Gemini unusable/failed    -> status "not_configured" | "unreachable" | "error", insight null,
+                                     a safe message explaining why (raw provider errors stay in the log)
+    The "calculated" block always carries the real backend values, which remain the source of truth.
     """
     context = build_context(user_id)
     has_data = bool(context.get("data_state", {}).get("has_data"))
     signature = data_signature(context)
 
     base = {
+        "provider": gemini_client.PROVIDER,
         "data_signature": signature,
         "cached": False,
         "model": gemini_model_name(),
@@ -1028,7 +840,7 @@ async def get_dashboard_insights(user_id: str = DEFAULT_USER_ID, force: bool = F
         return {
             **base,
             "status": STATUS_NO_DATA,
-            "source": "calculated",
+            "source": None,
             "ai_available": False,
             "notice": NOTICE_NO_DATA,
             "message": "Complete your Climate Assessment to generate your Climate Intelligence.",
@@ -1042,30 +854,20 @@ async def get_dashboard_insights(user_id: str = DEFAULT_USER_ID, force: bool = F
             payload["cached"] = True
             return payload
 
-    if not gemini_configured():
-        fallback = _calculated_insight(context, "GEMINI_API_KEY is not configured on the server")
-        logger.info("Gemini not configured - serving calculated dashboard insight")
+    try:
+        raw, result = await generate_insight_json(context)
+    except GeminiError as exc:
+        logger.warning("Dashboard insight not generated: %s (%s)", exc.category, exc.user_message)
         return {
             **base,
-            "status": STATUS_UNAVAILABLE,
-            "source": "calculated",
+            "status": exc.status,
+            "source": None,
             "ai_available": False,
-            "notice": NOTICE_UNAVAILABLE,
-            "insight": fallback,
-        }
-
-    raw, error = await call_gemini(context)
-    if raw is None:
-        fallback = _calculated_insight(context, error or "Gemini request failed")
-        # Real error stays in the server log; the UI only receives clean copy.
-        logger.warning("Gemini unavailable (%s) - serving calculated dashboard insight", error)
-        return {
-            **base,
-            "status": STATUS_ERROR if error and "not configured" not in error else STATUS_UNAVAILABLE,
-            "source": "calculated",
-            "ai_available": False,
-            "notice": NOTICE_UNAVAILABLE,
-            "insight": fallback,
+            "model": exc.model or base["model"],
+            "notice": "Gemini insight unavailable.",
+            "message": exc.user_message,
+            "error": gemini_client.public_error(exc),
+            "insight": None,
         }
 
     insight = normalize_insight(raw, context)
@@ -1078,7 +880,9 @@ async def get_dashboard_insights(user_id: str = DEFAULT_USER_ID, force: bool = F
         "status": STATUS_OK,
         "source": "gemini",
         "ai_available": True,
+        "model": result.model,
         "notice": None,
+        "message": None,
         "insight": insight,
     }
     _write_cache(user_id, signature, payload)

@@ -31,7 +31,8 @@ export const EMPTY_STATES = {
   report: 'No climate report yet. Add business data and complete the Climate Assessment to generate one.',
   history: 'Insufficient historical data for a reliable trend. Generate another Climate Fingerprint snapshot to build history.',
   solutions: 'No solutions match your filters.',
-  chatNoData: "I don't have your business climate data yet.\n\nComplete your Climate Assessment and I'll analyze it for you.",
+  scenarioNoData: 'No business climate data yet. Complete your Climate Assessment to simulate scenarios for your business.',
+  aiNoData: 'No business climate data yet. Complete your Climate Assessment so the ClimaCred AI Assistant can analyze your actual data.',
 };
 
 /**

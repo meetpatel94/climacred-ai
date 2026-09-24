@@ -280,7 +280,7 @@ export const ScenarioSimulatorPage: React.FC<ScenarioSimulatorPageProps> = ({
                           {sol.category}
                         </span>
                         <span className="text-[10px] font-bold text-emerald-800">
-                          {sol.estimatedPaybackPeriodYears}y Payback
+                          {sol.estimatedPaybackPeriodYears ?? '—'}y Payback
                         </span>
                       </div>
                       <p className="font-bold text-slate-900 truncate">{sol.title}</p>
@@ -344,7 +344,7 @@ export const ScenarioSimulatorPage: React.FC<ScenarioSimulatorPageProps> = ({
               message={
                 selectedIds.length === 0
                   ? 'Pick one or more interventions above. The backend model will calculate capital outlay, savings, payback and footprint reduction for your business.'
-                  : EMPTY_STATES.chatNoData
+                  : error || EMPTY_STATES.scenarioNoData
               }
             />
           ) : (

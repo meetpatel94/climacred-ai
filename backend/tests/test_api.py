@@ -15,6 +15,8 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
+from app.database.mongodb import get_database
+from app.database.collections import COLLECTIONS
 from tests.conftest import client, TEST_PROFILE, TEST_ASSESSMENT, seed_real_business
 
 # Values that used to be hardcoded demo data and must never be fabricated again.
@@ -162,6 +164,13 @@ def test_solutions_catalog_is_product_content_not_user_data():
     # Catalog problem statements must not quote one customer's measured values.
     assert "480,000 L/mo" not in resp.text
     assert "38,000 sq ft" not in resp.text
+    # Reading the catalog never writes anything into a fresh database.
+    assert get_database()[COLLECTIONS["green_solutions"]].count_documents({}) == 0
+
+
+def test_fingerprint_summary_has_no_invented_target_score(real_business):
+    summary = client.get("/api/climate-fingerprint").json()["summaryNote"]
+    assert "raise your Climate Readiness to" not in summary
 
 
 # ---------------------------------------------------------------------------
@@ -207,8 +216,62 @@ def test_profile_reset_clears_data_without_fabricating_a_default():
     client.post("/api/profile", json=TEST_PROFILE)
     resp = client.post("/api/profile/reset")
     assert resp.status_code == 200
-    assert resp.json() is None
+    body = resp.json()
+    assert body["has_data"] is False and body["data"] is None and body["profile"] is None
+    assert body["deleted"]["business_profiles"] == 1
     assert client.get("/api/profile").json() is None
+
+
+def test_reset_clears_every_module_not_just_the_profile(real_business):
+    """Regression: the old reset deleted only the profile, so the assessment and the
+    fingerprint (e.g. the demo score 47.5) kept the dashboard populated."""
+    client.post("/api/transformation-plan/generate")
+    client.post("/api/scenarios/simulate", json={"selected_solution_ids": ["sol-solar"]})
+    client.post("/api/reports/climate/generate")
+    client.post("/api/impact", json={"before": {"energy_kwh": 100}, "after": {"energy_kwh": 90}})
+    assert client.get("/api/climate-fingerprint").json()["overallScore"] is not None
+
+    body = client.post("/api/profile/reset").json()
+    for key in ("business_profiles", "climate_assessments", "climate_fingerprints", "transformation_plans",
+                "scenarios", "climate_reports", "impact_records"):
+        assert body["deleted"][key] >= 1, key
+
+    assert client.get("/api/profile").json() is None
+    assert client.get("/api/assessment").json() is None
+    assert client.get("/api/climate-fingerprint").json() is None
+    assert client.get("/api/climate-fingerprint/history").json()["count"] == 0
+    assert client.get("/api/climate-fingerprint/analytics/emissions").json()["available"] is False
+    assert client.get("/api/transformation-plan").json()["count"] == 0
+    assert client.get("/api/scenarios/history").json()["history"] == []
+    assert client.get("/api/impact").json()["count"] == 0
+    assert client.get("/api/reports/climate").json() is None
+    insight = client.get("/api/ai/dashboard-insights").json()
+    assert insight["status"] == "no_data" and insight["insight"] is None
+    # The solution catalog is platform content and survives the reset.
+    assert client.get("/api/solutions").json()["count"] > 0
+
+
+def test_orphaned_derived_documents_are_never_served(real_business):
+    """If the profile/assessment disappear (e.g. an older partial reset), leftover
+    fingerprints, plans, reports and scenarios must not resurface."""
+    client.post("/api/transformation-plan/generate")
+    client.post("/api/reports/climate/generate")
+    client.post("/api/scenarios/simulate", json={"selected_solution_ids": ["sol-solar"]})
+    db = get_database()
+    db[COLLECTIONS["business_profiles"]].delete_many({})
+    db[COLLECTIONS["climate_assessments"]].delete_many({})
+    assert db[COLLECTIONS["climate_fingerprints"]].count_documents({}) >= 1  # orphans still stored
+    assert client.get("/api/climate-fingerprint").json() is None
+    assert client.get("/api/climate-fingerprint/history").json()["count"] == 0
+    assert client.get("/api/transformation-plan").json()["count"] == 0
+    assert client.get("/api/reports/climate").json() is None
+    assert client.get("/api/scenarios/history").json()["history"] == []
+
+
+def test_scenario_simulation_without_data_is_a_clear_400():
+    resp = client.post("/api/scenarios/simulate", json={"selected_solution_ids": ["sol-solar"]})
+    assert resp.status_code == 400
+    assert "Climate Assessment" in resp.json()["detail"]
 
 
 # ---------------------------------------------------------------------------

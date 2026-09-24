@@ -4,7 +4,7 @@ import uuid
 from app.database.mongodb import get_collection
 from app.database.collections import COLLECTIONS
 from app.services.profile_service import get_profile
-from app.services.assessment_service import get_assessment, has_assessment_data
+from app.services.assessment_service import get_assessment, has_assessment_data, has_business_data
 from app.services.fingerprint_service import get_latest_fingerprint, generate_and_save_fingerprint
 from app.services.transformation_service import get_transformation_plan
 from app.services.impact_service import get_impact_records, get_latest_impact_as_verification_metrics
@@ -151,6 +151,10 @@ def generate_climate_report(user_id: str = DEFAULT_USER_ID, include_scenario: Op
     return report
 
 def get_latest_report(user_id: str = DEFAULT_USER_ID) -> Optional[Dict[str, Any]]:
+    # Reports embed the business profile. A stored report must never resurface
+    # after the profile/assessment it describes was deleted.
+    if not has_business_data(user_id):
+        return None
     col = get_collection(COLLECTIONS["climate_reports"])
     doc = col.find_one({"user_id": user_id}, sort=[("created_at", -1)])
     if not doc:
@@ -163,6 +167,8 @@ def get_latest_report(user_id: str = DEFAULT_USER_ID) -> Optional[Dict[str, Any]
     return d
 
 def get_report_history(user_id: str = DEFAULT_USER_ID, limit: int = 10) -> List[Dict[str, Any]]:
+    if not has_business_data(user_id):
+        return []
     col = get_collection(COLLECTIONS["climate_reports"])
     cursor = col.find({"user_id": user_id}).sort("created_at", -1).limit(limit)
     res = []

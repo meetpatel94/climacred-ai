@@ -25,6 +25,8 @@ async def simulate(payload: Dict[str, Any] = Body(...)):
         return result
     except HTTPException:
         raise
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
     except Exception as e:
         logger.error(f"Simulate error: {e}")
         raise HTTPException(status_code=500, detail=str(e))

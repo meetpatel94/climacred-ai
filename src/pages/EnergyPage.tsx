@@ -88,7 +88,7 @@ export const EnergyPage: React.FC<EnergyPageProps> = ({ onNavigate }) => {
 
   const recommended = solutions
     .slice()
-    .sort((a, b) => a.estimatedPaybackPeriodYears - b.estimatedPaybackPeriodYears)
+    .sort((a, b) => (a.estimatedPaybackPeriodYears ?? Infinity) - (b.estimatedPaybackPeriodYears ?? Infinity))
     .slice(0, 4);
 
   if (loading) {
@@ -289,7 +289,7 @@ export const EnergyPage: React.FC<EnergyPageProps> = ({ onNavigate }) => {
                   </div>
                   <div className="p-2 rounded-lg bg-emerald-50">
                     <p className="text-[10px] text-emerald-800">Payback</p>
-                    <p className="font-bold text-emerald-700">{solution.estimatedPaybackPeriodYears} yrs</p>
+                    <p className="font-bold text-emerald-700">{solution.estimatedPaybackPeriodYears ?? '—'} yrs</p>
                   </div>
                   <div className="p-2 rounded-lg bg-slate-50">
                     <p className="text-[10px] text-slate-600">Annual Saving</p>

@@ -288,7 +288,7 @@ export const WastePage: React.FC<WastePageProps> = ({ onNavigate }) => {
         insight={
           available
             ? 'The ClimaCred AI Assistant can explain your recorded waste mix, recycling rate and recovery options using these calculated values only.'
-            : EMPTY_STATES.chatNoData
+            : EMPTY_STATES.aiNoData
         }
         actionText="Open the solution catalog"
         onActionClick={() => onNavigate('solutions')}

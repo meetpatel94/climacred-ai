@@ -227,7 +227,7 @@ export const GreenSolutionsPage: React.FC<GreenSolutionsPageProps> = ({
                 <div className="flex items-center justify-between text-[11px] pt-1">
                   <span className="flex items-center gap-1 text-slate-600 font-medium">
                     <Clock className="w-3.5 h-3.5 text-slate-400" />
-                    Payback: <strong className="text-slate-900">{sol.estimatedPaybackPeriodYears} yrs</strong>
+                    Payback: <strong className="text-slate-900">{sol.estimatedPaybackPeriodYears ?? '—'} yrs</strong>
                   </span>
 
                   <span className="flex items-center gap-1 text-slate-600 font-medium">
@@ -324,7 +324,7 @@ export const GreenSolutionsPage: React.FC<GreenSolutionsPageProps> = ({
                   Payback Period
                 </span>
                 <p className="text-sm font-bold text-slate-900">
-                  {selectedModalSolution.estimatedPaybackPeriodYears} Years
+                  {selectedModalSolution.estimatedPaybackPeriodYears ?? '—'} Years
                 </p>
               </div>
 

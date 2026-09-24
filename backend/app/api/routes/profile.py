@@ -46,7 +46,7 @@ async def post_business_profile(data: Dict[str, Any] = Body(...)):
 async def post_business_profile_slash(data: Dict[str, Any] = Body(...)):
     return await post_business_profile(data)
 
-@router.post("/reset", summary="Clear the stored business profile (returns null)")
+@router.post("/reset", summary="Development reset: delete ALL stored data of the current user")
 async def reset_business_profile():
     try:
         return reset_profile()
@@ -54,6 +54,6 @@ async def reset_business_profile():
         logger.error(f"Reset profile error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/reset/", summary="Reset business profile to default (slash)")
+@router.post("/reset/", summary="Development reset (slash)")
 async def reset_business_profile_slash():
     return await reset_business_profile()

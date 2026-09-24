@@ -3,13 +3,19 @@ from datetime import datetime, timezone
 from app.database.mongodb import get_collection
 from app.database.collections import COLLECTIONS
 from app.services.profile_service import get_profile
-from app.services.assessment_service import get_assessment
+from app.services.assessment_service import get_assessment, has_business_data
 from app.services.fingerprint_service import get_latest_fingerprint, generate_and_save_fingerprint
 from app.climate_engine.simulations import simulate_with_fingerprint
 
 DEFAULT_USER_ID = "default"
 
 def simulate_scenario(selected_solution_ids: List[str], adoption_scale_percent: int = 100, user_id: str = DEFAULT_USER_ID) -> Dict[str, Any]:
+    if not has_business_data(user_id):
+        # A scenario can only be simulated against real stored business data.
+        raise ValueError(
+            "No business climate data stored yet. Add your business profile and complete the Climate Assessment "
+            "before running a scenario."
+        )
     profile = get_profile(user_id)
     assessment = get_assessment(user_id)
     fingerprint = get_latest_fingerprint(user_id)
@@ -36,6 +42,8 @@ def simulate_scenario(selected_solution_ids: List[str], adoption_scale_percent: 
     return result
 
 def get_scenario_history(user_id: str = DEFAULT_USER_ID, limit: int = 10) -> List[Dict[str, Any]]:
+    if not has_business_data(user_id):
+        return []
     col = get_collection(COLLECTIONS["scenarios"])
     cursor = col.find({"user_id": user_id}).sort("created_at", -1).limit(limit)
     res = []

@@ -93,27 +93,34 @@ PETROL_EMISSION_FACTOR_KG_PER_LITRE=2.31
 NATURAL_GAS_EMISSION_FACTOR_KG_PER_KG=2.75
 CALCULATION_VERSION=v1.0.0
 
-# --- Gemini AI intelligence layer (Phase 3) ---
-# 👉 Put your Google AI Studio key here (this is the ONLY value you must add).
-#    backend/.env  →  GEMINI_API_KEY=AIza...your-key...
-#    Get a key: https://aistudio.google.com/app/apikey
+# --- Gemini (backend only) ---
+# The ONLY value you must add. Create a key at https://aistudio.google.com/apikey
 GEMINI_API_KEY=
-GEMINI_MODEL=gemini-2.5-flash
+# Optional. Empty = auto-select a model the Gemini API reports for YOUR key and that
+# passes a live generateContent probe. Set a model (e.g. one from GET /api/ai/status ->
+# available_models) to pin it; it is verified the same way before it is used.
+GEMINI_MODEL=
 # Optional overrides
 GEMINI_API_BASE=https://generativelanguage.googleapis.com/v1beta
-GEMINI_TIMEOUT_SECONDS=25
+GEMINI_TIMEOUT_SECONDS=60
+GEMINI_STATUS_CACHE_SECONDS=300
+GEMINI_STATUS_ERROR_CACHE_SECONDS=30
 AI_INSIGHT_CACHE_MINUTES=180
+# Removes the legacy "ABC Textile" demo documents older builds auto-inserted (exact signature only)
+PURGE_LEGACY_DEMO_DATA=true
 ```
 
 > Never hardcode credentials. Provide `.env.example`. All secrets via env.
-> `GEMINI_API_KEY` is read **only by the FastAPI backend** — it is never sent to the browser, never returned
-> by any endpoint, never stored in MongoDB and never committed (`.env` is git-ignored).
+> `GEMINI_API_KEY` is read **only by the FastAPI backend** from `backend/.env` (resolved relative to the backend
+> folder, so it works from any working directory). It is never sent to the browser, never put in a `VITE_*`
+> variable, never returned by any endpoint, never stored in MongoDB and never committed (`.env` is git-ignored).
+> Restart the backend after editing `backend/.env`.
 
 ### Frontend Setup
 
 ```bash
 npm install
-# optional: set backend URL
+# optional: set backend URL (never put GEMINI_API_KEY in any frontend .env / VITE_* variable)
 echo "VITE_API_URL=http://localhost:8000" > .env
 npm run dev    # http://localhost:5173
 npm run build  # production single-file build
@@ -126,13 +133,17 @@ Vite proxies `/api` to `http://localhost:8000` for dev (see `vite.config.ts`).
 - **Local:** `mongod --dbpath ./data/db`
 - **Atlas:** set `MONGODB_URI=mongodb+srv://...`
 - **Without MongoDB:** backend automatically falls back to `mongomock` in-memory (data not persisted across restarts, but app remains functional).
-- **Nothing is inserted at startup.** A fresh database is genuinely empty; every figure in the UI comes from data you entered/imported, from MongoDB, or from backend calculations of that data.
+- **Nothing is inserted at startup, on connect, or on first page load.** A fresh database is genuinely empty;
+  every figure in the UI comes from data you entered, from MongoDB, or from backend calculations of that data.
+- **Legacy cleanup at startup:** the only data operation at startup *removes* documents that match the exact
+  signature of the "ABC Textile" demo that builds up to commit `a9db8ba` auto-inserted (see below).
+  Inspect a database read-only with `python -m app.database.legacy_demo` (from `backend/`), remove with `--apply`.
 
-Collections created on startup with indexes:
+Indexes are ensured at startup for:
 
 ```
-users, business_profiles, climate_assessments, climate_fingerprints, ai_insights,
-green_solutions, scenarios, transformation_plans, impact_records, climate_reports
+business_profiles, climate_assessments, climate_fingerprints, scenarios, transformation_plans,
+impact_records, climate_reports, ai_insights, ai_conversations, green_solutions
 ```
 
 Each doc has `created_at`, `updated_at`, `user_id`.
@@ -146,7 +157,7 @@ Swagger at `http://localhost:8000/docs`
 | Method | Path | Description |
 |--------|------|-------------|
 | GET/PATCH/POST | `/api/profile` | Business profile CRUD |
-| POST | `/api/profile/reset` | Clear the stored profile (returns `null`) |
+| POST | `/api/profile/reset` | Development reset: deletes **all** stored data of the current user (profile, assessment, fingerprints, plans, scenarios, reports, impact, AI caches, chat memory) → `{"has_data": false, "data": null, "deleted": {...}}` |
 | GET/POST/PATCH | `/api/assessment` | Climate assessment CRUD |
 | GET | `/api/climate-fingerprint` | Latest fingerprint |
 | POST | `/api/climate-fingerprint/generate` | Generate from profile+assessment |
@@ -168,78 +179,137 @@ Swagger at `http://localhost:8000/docs`
 | GET/POST | `/api/impact` | Get / submit impact (`before`, `after`) |
 | GET | `/api/impact/metrics` | Frontend-shaped metrics |
 | GET/POST | `/api/reports/climate` | Get / generate report |
-| GET | `/api/ai/dashboard-insights` | Gemini AI climate insight for the dashboard (auto-loaded, cached, `?refresh=true` to regenerate) |
-| POST | `/api/ai/chat` | Floating AI chat assistant (`{message, history[]}`; context is built server-side) |
-| GET | `/api/ai/chat/suggestions` | Starter questions for the chat assistant (`has_data` aware) |
-| GET | `/api/ai/status` | AI layer status (`gemini_configured`, model, cache TTL) |
+| GET | `/api/ai/status` | Real Gemini connection check (verified model + live `generateContent`, cached briefly; `?refresh=true`) |
+| POST | `/api/ai/chat` | `{message, conversation_id?}` → `{answer, provider: "gemini", model, conversation_id, status, ...}` |
+| DELETE | `/api/ai/chat/{conversation_id}` | Clear a conversation's server-side memory ("Clear chat") |
+| GET | `/api/ai/chat/suggestions` | The four starter questions + `has_data` |
+| GET | `/api/ai/dashboard-insights` | Gemini dashboard insight (auto-loaded, cached per data signature, `?refresh=true`) |
 
 All also available under `/api/v1/...` for compatibility.
 
 ---
 
-## Gemini AI Intelligence Layer (Phase 3)
+## Gemini AI Layer
 
-The dashboard automatically asks the backend for an AI interpretation of the user's **already stored** data.
-The user never pastes data, uploads reports or opens Gemini manually.
+### Root cause of the old "Gemini API error 404" (fixed)
 
-**Flow**
+The previous code sent `generateContent` requests blindly to a hardcoded chain
+`gemini-2.5-flash → gemini-2.0-flash → gemini-1.5-flash`. As of September 2026:
+
+- `gemini-1.5-*` models are shut down (404 for everyone),
+- `gemini-2.0-flash` was shut down on **2026-06-01** (404 for everyone),
+- `gemini-2.5-*` models are limited by Google to projects that used them before; keys from newer projects get
+  `404 "This model models/gemini-2.5-flash is no longer available to new users"`.
+
+So every candidate could answer 404 and the UI showed "Gemini API error 404". The URL format and the
+`x-goog-api-key` header were correct; the model names were not usable. There is no hardcoded model chain any more.
+
+### How the backend talks to Gemini (`backend/app/services/gemini_client.py`)
+
+- Official REST API `https://generativelanguage.googleapis.com/v1beta` — `models.list`, `models.get`,
+  `models.generateContent` — authenticated with the `x-goog-api-key` header (works for standard and the new
+  authorization keys; the key never appears in a URL, log line, response or the database).
+- **Model verification before use:** a configured `GEMINI_MODEL` must exist for the key, list `generateContent` in
+  `supportedGenerationMethods` (models.get) **and** answer a tiny real `generateContent` probe. With `GEMINI_MODEL`
+  empty, the newest stable Flash-family model that `models.list` reports for the key is probed and used.
+- Requests follow current Gemini 3 guidance: no temperature override (default 1.0), generous `maxOutputTokens`
+  (thinking tokens share the budget), `responseMimeType` JSON for insights / text for chat, thought parts skipped.
+- Failures are classified (invalid/unauthorised key, API disabled, model not found, model not available to the
+  project, quota, timeout, unreachable) into a **safe** message; raw provider text is only logged server-side.
+
+### `GET /api/ai/status`
+
+```json
+{"provider":"Google Gemini","configured":true,"authenticated":true,"model":"<verified model>","status":"connected"}
+{"provider":"Google Gemini","configured":false,"authenticated":false,"model":null,"status":"not_configured","message":"GEMINI_API_KEY is not set in backend/.env."}
+{"provider":"Google Gemini","configured":true,"authenticated":false,"model":null,"status":"error","message":"Gemini rejected the API key (HTTP 400 ... API_KEY_INVALID) ..."}
+{"provider":"Google Gemini","configured":true,"authenticated":false,"model":null,"status":"unreachable","message":"Could not reach the Gemini API ..."}
+```
+
+`connected` is reported **only** after a verified model answered a real `generateContent` request — a key that merely
+exists is not "connected". Results are cached (5 min when connected, 30 s after an error; `?refresh=true` re-checks)
+and every real chat/insight call updates the status. Model errors also return `available_models` for the key.
+
+**Navbar indicator** (`src/components/layout/GeminiStatusIndicator.tsx`, next to the Dark Mode toggle):
+`● Gemini Connected` / `● Gemini Not Connected` (no key or API unreachable) / `● Gemini Checking...` /
+`● Gemini Error`. Clicking it shows *Gemini · Status · Model · Last checked* plus the reason and "Re-check now".
+
+### Dashboard insight — `GET /api/ai/dashboard-insights`
 
 ```
-Dashboard mount
-  → GET /api/ai/dashboard-insights
-      → ai_insight_service.build_context()   (reuses the existing Phase 2 services:
-                                              profile, assessment, fingerprint, analytics,
-                                              recommendations, scenario engine, plan, impact)
-      → data_signature(context)              (SHA-256 of the stored data state)
-      → cache hit?  → return cached insight (no Gemini call)
-      → cache miss? → Gemini generateContent → structured JSON → numeric audit → cache
-      → Gemini missing/failing? → deterministic "calculated insight" + status notice
+Dashboard mount → build_context()  (stored profile, latest assessment, fingerprint, 5 resource analytics,
+                                    recommendations, current-assessment scenario runs, plan, impact, history)
+                → data_signature → cache hit? return it : Gemini generateContent (JSON) → number audit → cache
 ```
 
-- **Endpoint:** `GET /api/ai/dashboard-insights` (also `/api/v1/ai/dashboard-insights`, `?refresh=true` bypasses the cache)
-- **Service:** `backend/app/services/ai_insight_service.py` · **Route:** `backend/app/api/routes/ai.py`
-- **Model:** `GEMINI_MODEL` (default `gemini-2.5-flash`) via the official REST API
-  `https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent` with the `x-goog-api-key` header.
-- **Response schema:** `summary`, `recent_changes[]`, `key_risk`, `focus_now`, `priority_action`, `forecast`,
-  `expected_impact`, `confidence`, `details{data_used[], reasoning_summary, historical_comparison, main_risks[],
-  recommended_actions[], related_recommendations[], expected_impact_detail, confidence_note, assumptions[],
-  number_audit{verified, unsupported_values[]}}` plus `calculated` (Phase 2 source-of-truth values),
-  `history`, `status`, `source` (`gemini` | `calculated`), `cached`, `disclaimer`.
-- **Gemini never invents numbers:** the prompt is restricted to the calculated context and every numeric token
-  returned is audited against the context (`number_audit`). Unmatched figures are flagged in the UI.
-- **Forecast guardrail:** without earlier snapshots the forecast is forced to
-  `"Insufficient historical data for a reliable forecast."`
-- **Graceful degradation:** missing key / quota / timeout / bad JSON ⇒ `status: "unavailable" | "error"`,
-  `source: "calculated"` and the notice *"AI insights unavailable — showing calculated insights."* —
-  the dashboard and every Phase 2 endpoint keep working.
-- **Caching:** insights are cached per data signature (default 180 min, `ai_insights` collection) and the
-  browser keeps the last payload in `sessionStorage`; Gemini is only called again when stored data changes.
-- **Dark mode:** navbar toggle (end of the header) with `localStorage` persistence (`climacred_theme`) and a
-  class-based Tailwind v4 dark variant; the existing light palette is remapped in `src/index.css`.
+- Sections: **What Changed · Key Risk · What To Do Next · Trend / Forecast · Expected Impact** (+ "More Info").
+- `status`: `no_data` (nothing stored → no AI call, `insight: null`) · `ok` (`source: "gemini"`, verified `model`) ·
+  `not_configured` / `unreachable` / `error` (`insight: null` + safe `message`). There is **no template insight**
+  pretending to be AI; the dashboard's calculated metrics (`calculated`) are always the source of truth.
+- Numbers: Gemini may only reuse numbers present in the context; every number is audited (`number_audit`) and
+  unmatched figures are flagged. Without stored history the forecast is forced to *"Insufficient historical data
+  for a reliable forecast."* Missing values must be written as *"Insufficient data."*
 
-### Floating AI chat assistant
+### Floating chat — `POST /api/ai/chat`
 
-- **UI:** `src/components/chat/AIChatAssistant.tsx` — compact FAB in the bottom-right corner, available on every
-  page, titled *"ClimaCred AI Assistant"* with the subtitle *"Ask me about your climate data"*.
-- **Endpoint:** `POST /api/ai/chat` with `{message, history[]}`; the backend rebuilds the structured context on
-  every request (profile, latest assessment, fingerprint + history, analytics, recommendations, scenarios,
-  transformation plan, impact, reports) — never a raw database dump — so follow-up questions in the same
-  conversation keep their context.
-- **Answer style:** short, business-friendly and action-oriented (Answer / Why / What to do next / Relevant number).
-- **Numbers come from the calculation engine**, not from Gemini: the reply is numerically audited against the
-  backend context and falls back to the deterministic calculated answer when the model is unavailable.
-- **No data yet:** *"I don't have your business climate data yet."* + *"Complete your Climate Assessment and I'll
-  analyze it for you."* General (non-business) questions are still answered, clearly separated from data analysis.
-- **Errors:** missing/invalid key, quota, timeout or HTTP errors are logged server-side (model + reason) and the
-  user only sees *"AI insights are temporarily unavailable."* — never a raw 404 and never an invented answer.
+```json
+// request
+{"message": "What's my biggest climate risk?", "conversation_id": "optional"}
+// response
+{"answer": "...", "provider": "gemini", "model": "<verified model>", "conversation_id": "...", "status": "ok",
+ "has_data": true, "number_audit": {"verified": true, "unsupported_values": []}}
+```
 
-### Data authenticity
+- Every answer is generated by Gemini. If Gemini cannot answer, `answer` is `null` and `status`/`message` explain
+  why — the UI shows *"No answer from Gemini. <reason>"*. No canned chatbot answers exist in backend or frontend.
+- Context is gathered server-side from stored data only (compact, never a DB dump). With no stored data the
+  context says so and Gemini is instructed to answer *"I don't have your business climate data yet. Complete your
+  Climate Assessment and I'll analyze your actual data."* (greetings and product questions are answered normally).
+- **Follow-ups:** conversation memory is stored server-side (`ai_conversations`) under `conversation_id`, so
+  "How can I reduce it?" resolves "it". Cost questions use scenario / catalog investment data from the context,
+  otherwise *"The application does not currently have that value."* "Clear chat" deletes the memory.
+- Unverified numbers trigger one corrective retry; if any remain, the answer is shown with those values flagged.
+- UI: `src/components/chat/AIChatAssistant.tsx` — bottom-right "ClimaCred AI" FAB, *"ClimaCred AI Assistant"*,
+  *"Ask me about your climate data"*, the four suggestions, loading / error states, Clear chat, dark + light mode.
+  Nothing is written to browser storage.
 
-- No hardcoded business data ships with the app: `ABC Textile`, the demo assessment numbers and the
-  frontend `mockData.ts` fallback are gone (deleted, not hidden).
-- Every displayed value is user-entered/imported data, MongoDB data, or a backend calculation of it;
-  Gemini only ever *interprets* those values.
-- An empty database renders clean empty states — missing values are never replaced with zeros.
+### Troubleshooting Gemini
+
+| `GET /api/ai/status` says | Fix |
+|---|---|
+| `not_configured` | Put `GEMINI_API_KEY=...` in `backend/.env`, restart the backend. |
+| `error` · `auth` (400 API_KEY_INVALID / 401 / 403) | Create a new key in Google AI Studio (standard/unrestricted keys are being rejected in 2026), enable the Gemini API for the project, update `backend/.env`. |
+| `error` · `model_not_found` / `model_unavailable` (404) | Leave `GEMINI_MODEL` empty (auto-select) or set one of `available_models`. |
+| `error` · `quota` (429) | Wait / check plan & billing of the key's project. |
+| `unreachable` | The server cannot reach `generativelanguage.googleapis.com` (network, proxy, firewall). |
+
+## Fake Data: Root Cause & Removal
+
+**Fake data source found at:** the MongoDB database `climacred` (collections `business_profiles`,
+`climate_assessments`, `climate_fingerprints`, user_id `default`). Builds up to commit `a9db8ba` auto-**inserted** an
+"ABC Textile Manufacturing Ltd." business the first time `GET /api/profile` / `GET /api/assessment` found no document
+(`profile_service.get_profile` / `assessment_service.get_assessment` wrote hardcoded defaults: Tirupur, 145
+employees, 38,000 sq.ft, 38,500 kWh, 480,000 L, 3,600 kg textile scrap, 1,950 L fleet fuel), and
+`GET /api/climate-fingerprint` stored a fingerprint calculated from it (47.5/100). `seed.py --demo` wrote the same
+values. The current code no longer inserted anything, but those documents stayed in MongoDB and were served as real
+data; the 36.5 t CO₂e was calculated live from them (38,500×0.82 + 1,620×2.68 + 240×2.31 = 36.47 t). The old
+`POST /api/profile/reset` deleted only the profile, so the assessment, fingerprint and emissions survived a reset.
+
+**Removed by:**
+
+- startup purge of documents matching the exact legacy signature (`app/database/legacy_demo.py`): pure demo
+  documents are deleted; where a user edited the auto-inserted demo, their edits are kept and only leftover demo
+  values are removed; results derived from demo inputs (fingerprints, plans, reports, scenarios, AI caches) are
+  removed and recalculated on demand; user-entered data is never touched;
+- `POST /api/profile/reset` (Settings → "Reset All Stored Data") now deletes **every** per-user collection;
+- derived documents are never served without the real profile + assessment they came from (no orphans);
+- the dashboard Waste card now shows the backend's total of all waste streams (it used to show only the textile
+  field — the old "3,600 kg");
+- the frontend removes stale `sessionStorage`/`localStorage` keys left by older builds (AI insight / chat
+  transcript caches) and keeps only `climacred_theme` and `climacred_preferences`. IndexedDB was never used.
+
+Only two data states exist: **no data** → clean empty states everywhere; **real data** → real backend calculations
++ Gemini interpretation.
 
 ---
 
@@ -319,9 +389,9 @@ Every estimated metric exposes `assumptions[]`; every calculated environmental m
 # Terminal 1 – Backend
 cd backend
 pip install -r requirements.txt
-cp .env.example .env     # add GEMINI_API_KEY=... (optional; AI layer degrades gracefully without it)
+cp .env.example .env     # then set GEMINI_API_KEY=... in backend/.env
 uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
-# The API starts with an EMPTY database - no demo business is created.
+# The API starts with an EMPTY database - nothing is seeded; legacy demo documents are removed.
 
 # Terminal 2 – Frontend
 npm install
@@ -333,6 +403,9 @@ npm run dev
 
 ```bash
 curl http://localhost:8000/health
+curl http://localhost:8000/api/ai/status            # "connected" only after a live generateContent call
+curl -X POST http://localhost:8000/api/ai/chat -H "Content-Type: application/json" -d '{"message":"Hello"}'
+curl -X POST http://localhost:8000/api/profile/reset # development reset -> empty app
 curl http://localhost:8000/api/profile
 curl http://localhost:8000/api/climate-fingerprint
 curl -X POST http://localhost:8000/api/scenarios/simulate -H "Content-Type: application/json" -d '{"selected_solution_ids":["sol-solar","sol-water-ro"]}'
@@ -346,11 +419,13 @@ The normal app never creates sample data. If you want a throwaway business to cl
 
 ```bash
 cd backend
-python seed.py --demo      # refuses to run without an explicit flag
+python seed.py --demo            # refuses without the flag, and refuses if real user data exists
+python seed.py --demo --force    # overwrite the stored data of user "default"
 ```
 
-It writes a clearly-labelled illustrative business (profile, assessment, fingerprint, plan, report).
-The backend never calls this module, so a normal `uvicorn app.main:app` start leaves the database empty.
+It writes a clearly-labelled illustrative business (profile, assessment, fingerprint, plan, report, impact),
+tagged `data_origin="developer_seed_script"`. The application never imports or runs this module, so a normal
+`uvicorn app.main:app` start leaves the database empty. Remove it with `POST /api/profile/reset`.
 Never point it at a production database.
 
 ---
@@ -386,15 +461,15 @@ The app works only with what you enter, import, or what the backend calculates f
 
 ```bash
 cd backend
-python -m pytest tests -v          # 88 tests (50 API + 38 AI layer), Gemini mocked - no network needed
+python -m pytest tests -v          # 104 tests (54 API + 39 Gemini layer + 11 legacy-data), Gemini API faked - no network needed
 python audit_e2e.py                # optional: 99-check live end-to-end audit (needs the backend running)
 
 cd ..
 npx tsc --noEmit                   # type check
 npm run build                      # production single-file build (dist/index.html)
 npm run preview                    # then, with the backend running:
-node frontend_smoke_test.cjs            # 27/27 - empty DB, all pages, no fake data
-node frontend_smoke_test.cjs --with-data # 28/28 - same plus a real business seeded through the API
+NODE_PATH=... node frontend_smoke_test.cjs            # 33/33 - empty DB, indicator, chat, all pages, no fake data
+NODE_PATH=... node frontend_smoke_test.cjs --with-data # 34/34 - same plus a real business seeded through the API
 ```
 
 Covers:
@@ -410,14 +485,18 @@ Covers:
 - Impact (before/after calc, missing data, terminology)
 - Report (distinct data types, metadata)
 - Anomaly/forecast insufficient data messages
-- AI layer (`tests/test_ai.py`): missing key fallback, Gemini success, prompt contains stored data only,
-  numeric audit (unsupported values flagged), forecast forced when no history, quota/transport/JSON failures,
-  404 model fallback chain, cache prevents repeated Gemini calls, `?refresh=true`, history included when snapshots exist,
-  chat context/follow-ups, chat never ships invented numbers, provider errors never exposed to users
+- Gemini layer (`tests/test_ai.py`, fake Gemini REST API): status not_configured / connected only after a live
+  generateContent / auto-selection skipping models restricted to existing projects / retired configured model
+  detected without blind calls / invalid key / 403 / 429 / unreachable / caching; chat contract, conversation
+  memory, clear chat, no canned answers, stored-data-only context, backend numbers for budget & scenarios,
+  unverified numbers retried then flagged; insights no_data / ok / explicit errors / cache / audit
+- Legacy data (`tests/test_legacy_demo.py`): real dumps produced by the old code (`tests/fixtures/`) are removed at
+  startup, user data and user edits are preserved, derived demo snapshots are removed, nothing is seeded
 - Data authenticity: no `ABC Textile`/mock/demo literals in code or bundles; empty DB returns empty states;
   the API key never appears in any response
 
-**88 tests, all passing.** UI smoke test: **27/27** on an empty database, **28/28** with real submitted data.
+**104 tests, all passing.** UI smoke test: **33/33** on an empty database, **34/34** with real submitted data.
+Live audit: **99/99**.
 
 ---
 
@@ -437,6 +516,8 @@ Covers:
 - Empty database ⇒ clean empty states everywhere (dashboard, analytics pages, chat). Zeros are shown only when a stored value really is zero.
 - Fingerprint history: each assessment change stores a new snapshot; the older real snapshots are retained so trends and change comparisons have data. (Transformation plans and generated reports are still regenerated on assessment change.)
 - No frontend sample/demo data module exists any more — `src/services/mockData.ts` was removed, not hidden.
+- Gemini models change quickly (2.0 shut down 2026-06-01; 2.5 restricted for new projects). Leave `GEMINI_MODEL`
+  empty to use the newest verified model, or pin one from `GET /api/ai/status` → `available_models`.
 
 ---
 
