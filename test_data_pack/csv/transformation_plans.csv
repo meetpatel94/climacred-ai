@@ -1,0 +1,66 @@
+business_id,phase,action,solution_id,start_month,duration_months,expected_cost,expected_savings,expected_emission_reduction,expected_water_saving,owner_role,dependency,status
+B001,Phase 1 - Quick Wins,Source Waste Segregation & Colour-Coded Bins,sol-waste-segregation,1,2,129000,192000,13.66,0,EHS Officer,Baseline data from Climate Assessment,Completed
+B001,Phase 1 - Quick Wins,AI Delivery Route Dispatch & Load Optimization,sol-route-opt,3,3,75000,94000,5.39,0,Logistics Manager,Baseline data from Climate Assessment,Completed
+B001,Phase 1 - Quick Wins,Smart Ultrasonic Water Leak & Flow Telemetry,sol-leak-sensors,6,3,298000,172000,4.28,438599,EHS Officer,Baseline data from Climate Assessment,Completed
+B001,Phase 1 - Quick Wins,High-Bay Smart Daylight-Linked LED Lighting,sol-led-iot,9,3,360000,180000,17.2,0,Plant Head,Baseline data from Climate Assessment,Completed
+B001,Phase 2 - Efficiency Improvements,IoT Smart Sub-Metering & Energy Dashboard,sol-smart-metering,4,3,340000,210000,9.8,0,Plant Head,Baseline data from Climate Assessment,In Progress
+B001,Phase 2 - Efficiency Improvements,HVAC & Cold-Chain Optimization,sol-hvac-optimization,7,5,654000,267000,26.39,0,Energy Manager,Baseline data from Climate Assessment,In Progress
+B001,Phase 2 - Efficiency Improvements,VFD & IE4 Super-Premium Motors Retrofit,sol-machinery-vfd,12,3,1131000,412000,37.92,0,Energy Manager,Sub-metering baseline from sol-smart-metering preferred,In Progress
+B001,Phase 2 - Efficiency Improvements,Rooftop Rainwater Harvesting & Recharge Well,sol-rainwater,15,6,548000,198000,5.85,1023397,EHS Officer,Baseline data from Climate Assessment,In Progress
+B001,Phase 2 - Efficiency Improvements,Effluent Treatment Plant Optimization,sol-etp-optimization,21,6,1044000,324000,10.28,438599,EHS Officer,Wastewater flow survey,In Progress
+B001,Phase 2 - Efficiency Improvements,Closed-Loop Water Recycling & Ultrafiltration,sol-water-ro,27,10,2663000,668000,19.01,3905617,EHS Officer,ETP stabilisation before return line commissioning,In Progress
+B001,Phase 3 - Circularity,Textile Fabric Off-Cut Circular Recovery & Baling,sol-waste-recovery,8,3,466000,331000,25.15,0,EHS Officer,Segregation at source must be running,Planned
+B001,Phase 3 - Circularity,Sustainable / Light-Weight Packaging Design,sol-sustainable-packaging,11,4,599000,250000,26.45,0,Procurement Lead,Customer drop-test / specification approval,Planned
+B001,Phase 4 - Renewable / Mobility Transition,Rooftop Solar PV System (75 kWp),sol-solar,12,6,3118000,920000,89.01,0,Energy Manager,Roof structural survey + DISCOM net-metering application,Planned
+B001,Phase 4 - Renewable / Mobility Transition,Commercial EV Cargo Van Transition (Phase 1),sol-ev-fleet,18,6,1364000,312000,16.11,0,Logistics Manager,Charging infrastructure and depot power sanction,Planned
+B001,Phase 5 - Verification,"Metering calibration, data reconciliation & third-party review of reported outcomes",N/A,15,3,180000,0,0.0,0,Sustainability Coordinator,At least 6 months of post-implementation meter readings,In Progress
+B002,Phase 1 - Quick Wins,Source Waste Segregation & Colour-Coded Bins,sol-waste-segregation,1,2,83000,122000,8.72,0,EHS Officer,Baseline data from Climate Assessment,In Progress
+B002,Phase 1 - Quick Wins,AI Delivery Route Dispatch & Load Optimization,sol-route-opt,3,3,138000,174000,9.96,0,Logistics Manager,Baseline data from Climate Assessment,In Progress
+B002,Phase 1 - Quick Wins,Smart Ultrasonic Water Leak & Flow Telemetry,sol-leak-sensors,6,3,100000,58000,1.43,147000,EHS Officer,Baseline data from Climate Assessment,In Progress
+B002,Phase 1 - Quick Wins,High-Bay Smart Daylight-Linked LED Lighting,sol-led-iot,9,3,159000,79000,7.58,0,Plant Head,Baseline data from Climate Assessment,In Progress
+B002,Phase 2 - Efficiency Improvements,IoT Smart Sub-Metering & Energy Dashboard,sol-smart-metering,4,3,150000,92000,4.32,0,Plant Head,Baseline data from Climate Assessment,Planned
+B002,Phase 2 - Efficiency Improvements,Compressed Air System Optimization,sol-compressed-air,7,3,162000,92000,9.21,0,Energy Manager,Baseline data from Climate Assessment,Planned
+B002,Phase 2 - Efficiency Improvements,VFD & IE4 Super-Premium Motors Retrofit,sol-machinery-vfd,10,3,424000,155000,14.21,0,Energy Manager,Sub-metering baseline from sol-smart-metering preferred,Planned
+B002,Phase 2 - Efficiency Improvements,Rooftop Rainwater Harvesting & Recharge Well,sol-rainwater,13,6,184000,66000,1.96,343000,EHS Officer,Baseline data from Climate Assessment,Planned
+B002,Phase 2 - Efficiency Improvements,Effluent Treatment Plant Optimization,sol-etp-optimization,19,6,350000,108000,3.44,147000,EHS Officer,Wastewater flow survey,Planned
+B002,Phase 3 - Circularity,Textile Fabric Off-Cut Circular Recovery & Baling,sol-waste-recovery,8,3,297000,211000,16.04,0,EHS Officer,Segregation at source must be running,Planned
+B002,Phase 4 - Renewable / Mobility Transition,Rooftop Solar PV System (75 kWp),sol-solar,12,6,1168000,345000,33.36,0,Energy Manager,Roof structural survey + DISCOM net-metering application,Planned
+B002,Phase 4 - Renewable / Mobility Transition,Commercial EV Cargo Van Transition (Phase 1),sol-ev-fleet,18,6,2521000,576000,29.77,0,Logistics Manager,Charging infrastructure and depot power sanction,Planned
+B002,Phase 5 - Verification,"Metering calibration, data reconciliation & third-party review of reported outcomes",N/A,15,3,180000,0,0.0,0,Sustainability Coordinator,At least 6 months of post-implementation meter readings,Planned
+B003,Phase 1 - Quick Wins,Source Waste Segregation & Colour-Coded Bins,sol-waste-segregation,1,2,75000,110000,7.88,0,EHS Officer,Baseline data from Climate Assessment,Completed
+B003,Phase 1 - Quick Wins,AI Delivery Route Dispatch & Load Optimization,sol-route-opt,3,3,69000,87000,4.95,0,Logistics Manager,Baseline data from Climate Assessment,Completed
+B003,Phase 1 - Quick Wins,Smart Ultrasonic Water Leak & Flow Telemetry,sol-leak-sensors,6,3,100000,58000,1.43,147000,EHS Officer,Baseline data from Climate Assessment,Completed
+B003,Phase 1 - Quick Wins,High-Bay Smart Daylight-Linked LED Lighting,sol-led-iot,9,3,223000,111000,10.65,0,Plant Head,Baseline data from Climate Assessment,Completed
+B003,Phase 2 - Efficiency Improvements,IoT Smart Sub-Metering & Energy Dashboard,sol-smart-metering,4,3,210000,130000,6.07,0,Plant Head,Baseline data from Climate Assessment,In Progress
+B003,Phase 2 - Efficiency Improvements,HVAC & Cold-Chain Optimization,sol-hvac-optimization,7,5,325000,133000,13.14,0,Energy Manager,Baseline data from Climate Assessment,In Progress
+B003,Phase 2 - Efficiency Improvements,VFD & IE4 Super-Premium Motors Retrofit,sol-machinery-vfd,12,3,563000,205000,18.88,0,Energy Manager,Sub-metering baseline from sol-smart-metering preferred,In Progress
+B003,Phase 2 - Efficiency Improvements,Rooftop Rainwater Harvesting & Recharge Well,sol-rainwater,15,6,184000,66000,1.96,343000,EHS Officer,Baseline data from Climate Assessment,In Progress
+B003,Phase 2 - Efficiency Improvements,Closed-Loop Water Recycling & Ultrafiltration,sol-water-ro,21,10,892000,224000,6.37,1309000,EHS Officer,ETP stabilisation before return line commissioning,In Progress
+B003,Phase 3 - Circularity,Sustainable / Light-Weight Packaging Design,sol-sustainable-packaging,8,4,771000,322000,34.05,0,Procurement Lead,Customer drop-test / specification approval,Planned
+B003,Phase 3 - Circularity,Organic Waste Composting / Small Biogas Unit,sol-composting-biogas,12,5,478000,164000,26.99,0,EHS Officer,Segregation at source must be running,Planned
+B003,Phase 4 - Renewable / Mobility Transition,Rooftop Solar PV System (75 kWp),sol-solar,12,6,1552000,458000,44.32,0,Energy Manager,Roof structural survey + DISCOM net-metering application,Planned
+B003,Phase 4 - Renewable / Mobility Transition,Commercial EV Cargo Van Transition (Phase 1),sol-ev-fleet,18,6,1253000,286000,14.8,0,Logistics Manager,Charging infrastructure and depot power sanction,Planned
+B003,Phase 5 - Verification,"Metering calibration, data reconciliation & third-party review of reported outcomes",N/A,15,3,180000,0,0.0,0,Sustainability Coordinator,At least 6 months of post-implementation meter readings,In Progress
+B004,Phase 1 - Quick Wins,AI Delivery Route Dispatch & Load Optimization,sol-route-opt,1,3,40000,51000,2.91,0,Logistics Manager,Baseline data from Climate Assessment,Completed
+B004,Phase 1 - Quick Wins,Smart Ultrasonic Water Leak & Flow Telemetry,sol-leak-sensors,4,3,100000,58000,1.43,147000,EHS Officer,Baseline data from Climate Assessment,Completed
+B004,Phase 1 - Quick Wins,High-Bay Smart Daylight-Linked LED Lighting,sol-led-iot,7,3,189000,94000,9.01,0,Plant Head,Baseline data from Climate Assessment,Completed
+B004,Phase 2 - Efficiency Improvements,IoT Smart Sub-Metering & Energy Dashboard,sol-smart-metering,4,3,178000,110000,5.13,0,Plant Head,Baseline data from Climate Assessment,In Progress
+B004,Phase 2 - Efficiency Improvements,Compressed Air System Optimization,sol-compressed-air,7,3,150000,86000,8.55,0,Energy Manager,Baseline data from Climate Assessment,In Progress
+B004,Phase 2 - Efficiency Improvements,VFD & IE4 Super-Premium Motors Retrofit,sol-machinery-vfd,10,3,394000,144000,13.2,0,Energy Manager,Sub-metering baseline from sol-smart-metering preferred,In Progress
+B004,Phase 2 - Efficiency Improvements,Rooftop Rainwater Harvesting & Recharge Well,sol-rainwater,13,6,184000,66000,1.96,343000,EHS Officer,Baseline data from Climate Assessment,In Progress
+B004,Phase 3 - Circularity,Sustainable / Light-Weight Packaging Design,sol-sustainable-packaging,8,4,577000,241000,25.49,0,Procurement Lead,Customer drop-test / specification approval,Planned
+B004,Phase 4 - Renewable / Mobility Transition,Rooftop Solar PV System (75 kWp),sol-solar,12,6,1085000,320000,30.97,0,Energy Manager,Roof structural survey + DISCOM net-metering application,Planned
+B004,Phase 5 - Verification,"Metering calibration, data reconciliation & third-party review of reported outcomes",N/A,15,3,180000,0,0.0,0,Sustainability Coordinator,At least 6 months of post-implementation meter readings,In Progress
+B005,Phase 1 - Quick Wins,Source Waste Segregation & Colour-Coded Bins,sol-waste-segregation,1,2,44000,65000,4.62,0,EHS Officer,Baseline data from Climate Assessment,In Progress
+B005,Phase 1 - Quick Wins,AI Delivery Route Dispatch & Load Optimization,sol-route-opt,3,3,40000,51000,2.91,0,Logistics Manager,Baseline data from Climate Assessment,In Progress
+B005,Phase 1 - Quick Wins,Smart Ultrasonic Water Leak & Flow Telemetry,sol-leak-sensors,6,3,100000,58000,1.43,147000,EHS Officer,Baseline data from Climate Assessment,In Progress
+B005,Phase 1 - Quick Wins,High-Bay Smart Daylight-Linked LED Lighting,sol-led-iot,9,3,137000,69000,6.55,0,Plant Head,Baseline data from Climate Assessment,In Progress
+B005,Phase 2 - Efficiency Improvements,IoT Smart Sub-Metering & Energy Dashboard,sol-smart-metering,4,3,130000,80000,3.73,0,Plant Head,Baseline data from Climate Assessment,Planned
+B005,Phase 2 - Efficiency Improvements,HVAC & Cold-Chain Optimization,sol-hvac-optimization,7,5,228000,93000,9.18,0,Energy Manager,Baseline data from Climate Assessment,Planned
+B005,Phase 2 - Efficiency Improvements,VFD & IE4 Super-Premium Motors Retrofit,sol-machinery-vfd,12,3,394000,144000,13.2,0,Energy Manager,Sub-metering baseline from sol-smart-metering preferred,Planned
+B005,Phase 2 - Efficiency Improvements,Rooftop Rainwater Harvesting & Recharge Well,sol-rainwater,15,6,184000,66000,1.96,343000,EHS Officer,Baseline data from Climate Assessment,Planned
+B005,Phase 2 - Efficiency Improvements,Effluent Treatment Plant Optimization,sol-etp-optimization,21,6,350000,108000,3.44,147000,EHS Officer,Wastewater flow survey,Planned
+B005,Phase 3 - Circularity,Textile Fabric Off-Cut Circular Recovery & Baling,sol-waste-recovery,8,3,158000,112000,8.5,0,EHS Officer,Segregation at source must be running,Planned
+B005,Phase 3 - Circularity,Sustainable / Light-Weight Packaging Design,sol-sustainable-packaging,11,4,474000,198000,20.95,0,Procurement Lead,Customer drop-test / specification approval,Planned
+B005,Phase 4 - Renewable / Mobility Transition,Rooftop Solar PV System (75 kWp),sol-solar,12,6,1085000,320000,30.97,0,Energy Manager,Roof structural survey + DISCOM net-metering application,Planned
+B005,Phase 5 - Verification,"Metering calibration, data reconciliation & third-party review of reported outcomes",N/A,15,3,180000,0,0.0,0,Sustainability Coordinator,At least 6 months of post-implementation meter readings,Planned

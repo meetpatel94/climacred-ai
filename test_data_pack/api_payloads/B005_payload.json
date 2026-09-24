@@ -1,0 +1,85 @@
+{
+  "business_id": "B005",
+  "note": "POST /api/profile then /api/assessment for this business, then POST /api/fingerprint/generate. Fictional demo data.",
+  "profile": {
+    "business_name": "BlueStone Furniture Works",
+    "name": "BlueStone Furniture Works",
+    "industry": "Furniture Manufacturing",
+    "business_type": "Solid Wood & Engineered-Wood Furniture",
+    "businessType": "Solid Wood & Engineered-Wood Furniture",
+    "location": "Jaipur, Rajasthan, India",
+    "employees": 38,
+    "working_days": 25,
+    "workingDaysPerMonth": 25,
+    "production_volume": "1,450 pieces / month",
+    "productionVolume": "1,450 pieces / month",
+    "operating_hours": 10,
+    "operatingHoursPerDay": 10,
+    "business_size": "Micro",
+    "businessSize": "Micro",
+    "facility_area_sqft": 16000,
+    "facilityAreaSqFt": 16000,
+    "contact_email": "workshop.b005@climacred-demo.example",
+    "contactEmail": "workshop.b005@climacred-demo.example",
+    "phone": "+91 00000 00000 (placeholder)"
+  },
+  "assessment": {
+    "energy": {
+      "monthlyElectricityKwh": 60011,
+      "monthlyElectricityBillInr": 558102,
+      "dieselGeneratorHoursPerMonth": 46,
+      "generatorFuelLitresPerMonth": 347,
+      "existingSolarCapacityKw": 0.0,
+      "energyEfficientEquipmentPercent": 22.0
+    },
+    "water": {
+      "monthlyWaterLitres": 40567,
+      "waterSource": "Groundwater / Borewell",
+      "waterRecyclingAvailable": false,
+      "rainwaterHarvesting": false,
+      "leakageFrequency": "Frequent",
+      "wastewaterTreatment": "None"
+    },
+    "waste": {
+      "organicWasteKgPerMonth": 96,
+      "plasticWasteKgPerMonth": 298,
+      "paperWasteKgPerMonth": 232,
+      "industrialWasteKgPerMonth": 2046,
+      "textileMaterialWasteKgPerMonth": 2792,
+      "currentRecyclingPercent": 19.5,
+      "wasteSegregationPracticed": false
+    },
+    "emissions": {
+      "primaryFuel": "Electricity Grid",
+      "monthlyDieselLitres": 633,
+      "monthlyPetrolLitres": 269,
+      "monthlyNaturalGasKg": 258,
+      "mainEmissionSources": [
+        "Grid Electricity",
+        "Diesel Genset",
+        "Fleet Transport",
+        "Process Heat",
+        "Purchased Materials"
+      ],
+      "airPollutionControlSystem": "Basic Scrubber"
+    },
+    "mobility": {
+      "deliveryVehiclesCount": 2,
+      "vehicleFuelType": "Petrol",
+      "monthlyFleetFuelLitres": 493,
+      "employeeCommuteMode": "Two-Wheelers",
+      "evAdoptedPercent": 0.0
+    },
+    "greenPractices": {
+      "ledLighting": false,
+      "solarPanels": false,
+      "rainwaterHarvesting": false,
+      "waterRecycling": false,
+      "wasteSegregation": false,
+      "energyEfficientMachinery": false,
+      "evAdoption": false,
+      "sustainableMaterials": false
+    }
+  },
+  "expected_overall_climate_score": 42.4
+}

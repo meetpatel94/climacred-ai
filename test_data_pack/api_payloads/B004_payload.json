@@ -1,0 +1,85 @@
+{
+  "business_id": "B004",
+  "note": "POST /api/profile then /api/assessment for this business, then POST /api/fingerprint/generate. Fictional demo data.",
+  "profile": {
+    "business_name": "GreenPack Packaging Works",
+    "name": "GreenPack Packaging Works",
+    "industry": "Packaging Manufacturing",
+    "business_type": "Corrugated Boxes & Flexible Packaging",
+    "businessType": "Corrugated Boxes & Flexible Packaging",
+    "location": "Ahmedabad, Gujarat, India",
+    "employees": 120,
+    "working_days": 25,
+    "workingDaysPerMonth": 25,
+    "production_volume": "185,000 units / month",
+    "productionVolume": "185,000 units / month",
+    "operating_hours": 12,
+    "operatingHoursPerDay": 12,
+    "business_size": "Small",
+    "businessSize": "Small",
+    "facility_area_sqft": 22000,
+    "facilityAreaSqFt": 22000,
+    "contact_email": "unit.b004@climacred-demo.example",
+    "contactEmail": "unit.b004@climacred-demo.example",
+    "phone": "+91 00000 00000 (placeholder)"
+  },
+  "assessment": {
+    "energy": {
+      "monthlyElectricityKwh": 42297,
+      "monthlyElectricityBillInr": 355295,
+      "dieselGeneratorHoursPerMonth": 6,
+      "generatorFuelLitresPerMonth": 152,
+      "existingSolarCapacityKw": 48.0,
+      "energyEfficientEquipmentPercent": 78.0
+    },
+    "water": {
+      "monthlyWaterLitres": 58392,
+      "waterSource": "Municipal",
+      "waterRecyclingAvailable": true,
+      "rainwaterHarvesting": true,
+      "leakageFrequency": "Never",
+      "wastewaterTreatment": "Full ETP / STP"
+    },
+    "waste": {
+      "organicWasteKgPerMonth": 207,
+      "plasticWasteKgPerMonth": 1246,
+      "paperWasteKgPerMonth": 2722,
+      "industrialWasteKgPerMonth": 987,
+      "textileMaterialWasteKgPerMonth": 0,
+      "currentRecyclingPercent": 71.3,
+      "wasteSegregationPracticed": true
+    },
+    "emissions": {
+      "primaryFuel": "Electricity Grid",
+      "monthlyDieselLitres": 684,
+      "monthlyPetrolLitres": 289,
+      "monthlyNaturalGasKg": 128,
+      "mainEmissionSources": [
+        "Grid Electricity",
+        "Diesel Genset",
+        "Fleet Transport",
+        "Process Heat",
+        "Purchased Materials"
+      ],
+      "airPollutionControlSystem": "Bag Filter / ESP"
+    },
+    "mobility": {
+      "deliveryVehiclesCount": 3,
+      "vehicleFuelType": "Mixed Fleet",
+      "monthlyFleetFuelLitres": 821,
+      "employeeCommuteMode": "Company Bus",
+      "evAdoptedPercent": 33
+    },
+    "greenPractices": {
+      "ledLighting": true,
+      "solarPanels": true,
+      "rainwaterHarvesting": true,
+      "waterRecycling": true,
+      "wasteSegregation": true,
+      "energyEfficientMachinery": true,
+      "evAdoption": true,
+      "sustainableMaterials": true
+    }
+  },
+  "expected_overall_climate_score": 85.2
+}
