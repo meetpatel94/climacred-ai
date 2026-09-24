@@ -6,7 +6,7 @@ import logging
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["Profile"])
 
-@router.get("", summary="Get business profile")
+@router.get("", summary="Get business profile (null when the user has not created one yet)")
 async def get_business_profile():
     try:
         return get_profile()
@@ -46,7 +46,7 @@ async def post_business_profile(data: Dict[str, Any] = Body(...)):
 async def post_business_profile_slash(data: Dict[str, Any] = Body(...)):
     return await post_business_profile(data)
 
-@router.post("/reset", summary="Reset business profile to default")
+@router.post("/reset", summary="Clear the stored business profile (returns null)")
 async def reset_business_profile():
     try:
         return reset_profile()

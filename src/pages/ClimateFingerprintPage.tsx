@@ -20,11 +20,14 @@ import {
   Tooltip,
 } from 'recharts';
 import { ClimateFingerprint, PageId } from '../types';
-import { ImpactBadge, DemoTag } from '../components/common/StatusBadge';
+import { ImpactBadge } from '../components/common/StatusBadge';
 import { AIInsightCard } from '../components/common/AIInsightCard';
+import { EmptyState } from '../components/common/EmptyState';
+import { EMPTY_STATES } from '../services/defaults';
 
 interface ClimateFingerprintPageProps {
-  fingerprint: ClimateFingerprint;
+  /** null until the user has stored an assessment and a fingerprint was calculated */
+  fingerprint: ClimateFingerprint | null;
   onNavigate: (page: PageId) => void;
 }
 
@@ -41,6 +44,34 @@ export const ClimateFingerprintPage: React.FC<ClimateFingerprintPageProps> = ({
   fingerprint,
   onNavigate,
 }) => {
+  // No stored data -> no diagnostic is invented; the user is guided to the assessment.
+  if (!fingerprint) {
+    return (
+      <div className="space-y-8 max-w-4xl pb-16">
+        <div className="bg-white border border-slate-200/90 rounded-3xl p-6 sm:p-8 shadow-xs space-y-3">
+          <div className="flex items-center gap-2">
+            <span className="p-2 rounded-xl bg-emerald-50 text-emerald-700">
+              <Fingerprint className="w-5 h-5" />
+            </span>
+            <span className="text-xs font-bold uppercase tracking-wider text-emerald-800">
+              Multi-Dimensional Diagnostic
+            </span>
+          </div>
+          <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight">Enterprise Climate Fingerprint</h2>
+          <p className="text-sm text-slate-600">{EMPTY_STATES.fingerprint}</p>
+        </div>
+
+        <EmptyState
+          icon={Fingerprint}
+          title="No Climate Fingerprint yet"
+          message="ClimaCred calculates your fingerprint from your stored business profile and Climate Assessment. Nothing is estimated before you submit data."
+          actionLabel="Complete Climate Assessment"
+          onAction={() => onNavigate('assessment')}
+        />
+      </div>
+    );
+  }
+
   const radarData = fingerprint.dimensions.map((d) => ({
     dimension: d.dimension,
     score: d.score,
@@ -61,7 +92,6 @@ export const ClimateFingerprintPage: React.FC<ClimateFingerprintPageProps> = ({
               <span className="text-xs font-bold uppercase tracking-wider text-emerald-800">
                 Multi-Dimensional Diagnostic
               </span>
-              <DemoTag />
             </div>
 
             <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight leading-tight">
@@ -73,16 +103,18 @@ export const ClimateFingerprintPage: React.FC<ClimateFingerprintPageProps> = ({
               <strong className="text-slate-900 font-bold">
                 {fingerprint.topImprovementDimensions.join(', ')}
               </strong>
-              . This fingerprint maps resource leakages against typical manufacturing benchmarks in
-              your geographical cluster.
+              . Scores are calculated from the operational data you stored, weighted across six
+              dimensions.
             </p>
 
             <div className="flex flex-wrap gap-2 pt-1">
+              {fingerprint.benchmarkPercentile !== null && fingerprint.benchmarkPercentile !== undefined && (
+                <span className="px-3 py-1 rounded-full bg-slate-100 text-slate-700 text-xs font-semibold">
+                  Modelled benchmark percentile: {fingerprint.benchmarkPercentile}
+                </span>
+              )}
               <span className="px-3 py-1 rounded-full bg-slate-100 text-slate-700 text-xs font-semibold">
-                Peer Percentile: 46th
-              </span>
-              <span className="px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-semibold">
-                Projected with Roadmap: 86/100
+                {fingerprint.dimensions.length} dimensions scored
               </span>
             </div>
           </div>
@@ -145,10 +177,10 @@ export const ClimateFingerprintPage: React.FC<ClimateFingerprintPageProps> = ({
         </div>
       </div>
 
-      {/* AI Diagnostic Explanation Card */}
+      {/* Diagnostic summary - uses the calculated dimension text only */}
       <AIInsightCard
-        title="AI Fingerprint Summary & Key Observations"
-        insight="Water extraction stress and unoptimized peak-hour electricity drives over 74% of your environmental vulnerability. Deploying closed-loop water treatment along with rooftop solar reduces risk to 'Low' within 14 months."
+        title="Fingerprint Summary"
+        insight={`Your weakest dimension is ${fingerprint.topImprovementDimensions.join(', ') || 'not yet identified'} with an overall readiness of ${fingerprint.overallScore}/100 (${fingerprint.scoreLabel}). ${fingerprint.summaryNote}`}
         actionText="Open Scenario Simulator to test interventions"
         onActionClick={() => onNavigate('simulator')}
       />

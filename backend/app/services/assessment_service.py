@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from app.database.mongodb import get_collection
 from app.database.collections import COLLECTIONS
 from app.utils.validation import validate_assessment_data
@@ -8,60 +8,12 @@ import logging
 logger = logging.getLogger(__name__)
 DEFAULT_USER_ID = "default"
 
-DEFAULT_ASSESSMENT = {
-    "energy": {
-        "monthlyElectricityKwh": 38500,
-        "monthlyElectricityBillInr": 346500,
-        "dieselGeneratorHoursPerMonth": 64,
-        "generatorFuelLitresPerMonth": 1280,
-        "existingSolarCapacityKw": 0,
-        "energyEfficientEquipmentPercent": 28,
-    },
-    "water": {
-        "monthlyWaterLitres": 480000,
-        "waterSource": "Groundwater / Borewell",
-        "waterRecyclingAvailable": False,
-        "rainwaterHarvesting": False,
-        "leakageFrequency": "Monthly",
-        "wastewaterTreatment": "Primary / Settling",
-    },
-    "waste": {
-        "organicWasteKgPerMonth": 380,
-        "plasticWasteKgPerMonth": 950,
-        "paperWasteKgPerMonth": 420,
-        "industrialWasteKgPerMonth": 1850,
-        "textileMaterialWasteKgPerMonth": 3600,
-        "currentRecyclingPercent": 22,
-        "wasteSegregationPracticed": True,
-    },
-    "emissions": {
-        "primaryFuel": "Electricity Grid",
-        "monthlyDieselLitres": 1620,
-        "monthlyPetrolLitres": 240,
-        "monthlyNaturalGasKg": 0,
-        "mainEmissionSources": ["Boiler Combustion", "Grid Electricity (Thermal Base)", "Heavy Transport", "Backup Genset"],
-        "airPollutionControlSystem": "Basic Scrubber",
-    },
-    "mobility": {
-        "deliveryVehiclesCount": 8,
-        "vehicleFuelType": "Diesel",
-        "monthlyFleetFuelLitres": 1950,
-        "employeeCommuteMode": "Two-Wheelers",
-        "evAdoptedPercent": 0,
-    },
-    "greenPractices": {
-        "ledLighting": True,
-        "solarPanels": False,
-        "rainwaterHarvesting": False,
-        "waterRecycling": False,
-        "wasteSegregation": True,
-        "energyEfficientMachinery": False,
-        "evAdoption": False,
-        "sustainableMaterials": False,
-    }
-}
+# Structural template only. It contains NO values: sections the user has not
+# filled in stay empty, so missing data is never displayed as a fabricated
+# number or as an invented zero.
+EMPTY_SECTIONS = ["energy", "water", "waste", "emissions", "mobility", "greenPractices"]
 
-def _serialize(doc: Dict[str, Any]) -> Dict[str, Any]:
+def _serialize(doc: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
     if not doc:
         return doc
     d = dict(doc)
@@ -72,30 +24,47 @@ def _serialize(doc: Dict[str, Any]) -> Dict[str, Any]:
     d.pop("updated_at", None)
     return d
 
-def get_assessment(user_id: str = DEFAULT_USER_ID) -> Dict[str, Any]:
+def get_assessment(user_id: str = DEFAULT_USER_ID) -> Optional[Dict[str, Any]]:
+    """Return the stored climate assessment, or None when nothing is stored yet.
+
+    Previously this inserted a hardcoded demo assessment (38,500 kWh, 480,000 L,
+    ...) on first read. That fabricated data has been removed so an empty
+    database really is empty.
+    """
     col = get_collection(COLLECTIONS["climate_assessments"])
     doc = col.find_one({"user_id": user_id}, sort=[("updated_at", -1)])
     if not doc:
-        # insert default
-        new_doc = {
-            "user_id": user_id,
-            **DEFAULT_ASSESSMENT,
-            "created_at": datetime.now(timezone.utc),
-            "updated_at": datetime.now(timezone.utc)
-        }
-        try:
-            col.insert_one(new_doc)
-        except:
-            pass
-        return _serialize(new_doc)
+        return None
     return _serialize(doc)
+
+
+def has_assessment_data(assessment: Optional[Dict[str, Any]]) -> bool:
+    """True only when the user has actually recorded at least one value."""
+    if not assessment:
+        return False
+    for section in EMPTY_SECTIONS:
+        values = assessment.get(section)
+        if isinstance(values, dict):
+            for value in values.values():
+                if value is None or value == "" or value == []:
+                    continue
+                if isinstance(value, bool):
+                    if value:
+                        return True
+                    continue
+                if isinstance(value, (int, float)):
+                    if value != 0:
+                        return True
+                    continue
+                return True
+    return False
 
 def save_assessment(data: Dict[str, Any], user_id: str = DEFAULT_USER_ID) -> Dict[str, Any]:
     # Validate
     validate_assessment_data(data)
     col = get_collection(COLLECTIONS["climate_assessments"])
     # Normalize: ensure all sections present, merge with existing to avoid missing
-    existing = get_assessment(user_id)
+    existing = get_assessment(user_id) or {}
     # data may be partial (PATCH) or full (POST)
     # If data contains nested sections, merge
     merged = {}
@@ -118,11 +87,12 @@ def save_assessment(data: Dict[str, Any], user_id: str = DEFAULT_USER_ID) -> Dic
                 merged["greenPractices"] = existing["greenPractices"]
     # Also handle snake_case sections coming from frontend? Already covered via extra allow
 
-    # Ensure all default sections at least present
-    for key in DEFAULT_ASSESSMENT:
+    # Ensure every section exists as an (empty) object – never with invented values
+    for key in EMPTY_SECTIONS:
         if key not in merged:
-            merged[key] = DEFAULT_ASSESSMENT[key]
-        # else ensure subfields defaults for missing?
+            merged[key] = {}
+        if not isinstance(merged[key], dict):
+            merged[key] = {}
     # Also handle green_practices alias
     if "green_practices" in merged and "greenPractices" not in merged:
         merged["greenPractices"] = merged.pop("green_practices")
@@ -141,10 +111,11 @@ def save_assessment(data: Dict[str, Any], user_id: str = DEFAULT_USER_ID) -> Dic
     col.insert_one(doc)
     logger.info(f"Assessment saved for user {user_id}, invalidate fingerprint cache")
 
-    # Invalidate fingerprint: delete old fingerprint so it recalculates on next generate? Or keep but mark stale?
-    # We'll delete old fingerprint to force recalc
+    # Invalidate the *current* fingerprint so it is recalculated from the new data, but
+    # KEEP the earlier snapshots: they are real historical records and power the trend
+    # charts / history comparison. Only the current snapshot is flagged as superseded.
     fp_col = get_collection(COLLECTIONS["climate_fingerprints"])
-    fp_col.delete_many({"user_id": user_id})
+    fp_col.update_many({"user_id": user_id}, {"$set": {"superseded": True}})
     # Also invalidate transformation plan and reports cache
     t_col = get_collection(COLLECTIONS["transformation_plans"])
     t_col.delete_many({"user_id": user_id})
@@ -154,7 +125,7 @@ def save_assessment(data: Dict[str, Any], user_id: str = DEFAULT_USER_ID) -> Dic
     return _serialize(doc)
 
 def patch_assessment(updates: Dict[str, Any], user_id: str = DEFAULT_USER_ID) -> Dict[str, Any]:
-    existing = get_assessment(user_id)
+    existing = get_assessment(user_id) or {}
     # Deep merge
     merged = {}
     for k, v in existing.items():

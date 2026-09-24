@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 import { Building2, Save, Check, MapPin, Users, Calendar, Clock, Gauge, Mail } from 'lucide-react';
 import { BusinessProfile, PageId } from '../types';
-import { DemoTag } from '../components/common/StatusBadge';
+import { emptyProfileDraft } from '../services/defaults';
 
 interface BusinessProfilePageProps {
-  profile: BusinessProfile;
+  /** null until the user has saved a profile - the form then starts blank */
+  profile: BusinessProfile | null;
   onSave: (updated: BusinessProfile) => void;
   onNavigate: (page: PageId) => void;
 }
@@ -34,7 +35,9 @@ export const BusinessProfilePage: React.FC<BusinessProfilePageProps> = ({
   onSave,
   onNavigate,
 }) => {
-  const [formData, setFormData] = useState<BusinessProfile>({ ...profile });
+  const [formData, setFormData] = useState<BusinessProfile>(() =>
+    profile ? { ...profile } : emptyProfileDraft()
+  );
   const [savedSuccess, setSavedSuccess] = useState(false);
 
   const handleChange = (field: keyof BusinessProfile, value: any) => {
@@ -59,7 +62,6 @@ export const BusinessProfilePage: React.FC<BusinessProfilePageProps> = ({
             <h2 className="text-xl font-extrabold text-slate-900 tracking-tight">
               Enterprise Profile & Baseline Parameters
             </h2>
-            <DemoTag />
           </div>
           <p className="text-xs text-slate-600">
             ClimaCred AI uses your industry cluster, facility area, and shift hours to benchmark
@@ -92,7 +94,7 @@ export const BusinessProfilePage: React.FC<BusinessProfilePageProps> = ({
               </label>
               <input
                 type="text"
-                value={formData.name}
+                value={formData.name ?? ''}
                 onChange={(e) => handleChange('name', e.target.value)}
                 className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600 text-sm font-medium text-slate-900 outline-hidden transition-colors"
                 required
@@ -104,10 +106,11 @@ export const BusinessProfilePage: React.FC<BusinessProfilePageProps> = ({
                 Industry Sector
               </label>
               <select
-                value={formData.industry}
+                value={formData.industry ?? ''}
                 onChange={(e) => handleChange('industry', e.target.value)}
                 className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600 text-sm font-medium text-slate-900 outline-hidden bg-white transition-colors"
               >
+                <option value="">Select industry…</option>
                 {INDUSTRIES.map((ind) => (
                   <option key={ind} value={ind}>
                     {ind}
@@ -122,7 +125,7 @@ export const BusinessProfilePage: React.FC<BusinessProfilePageProps> = ({
               </label>
               <input
                 type="text"
-                value={formData.businessType}
+                value={formData.businessType ?? ''}
                 onChange={(e) => handleChange('businessType', e.target.value)}
                 placeholder="e.g., Fabric Dyeing & Finishing"
                 className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600 text-sm font-medium text-slate-900 outline-hidden transition-colors"
@@ -159,7 +162,7 @@ export const BusinessProfilePage: React.FC<BusinessProfilePageProps> = ({
               </label>
               <input
                 type="text"
-                value={formData.location}
+                value={formData.location ?? ''}
                 onChange={(e) => handleChange('location', e.target.value)}
                 placeholder="City, Industrial Cluster, State, Country"
                 className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600 text-sm font-medium text-slate-900 outline-hidden transition-colors"
@@ -186,8 +189,11 @@ export const BusinessProfilePage: React.FC<BusinessProfilePageProps> = ({
               </label>
               <input
                 type="number"
-                value={formData.employees}
-                onChange={(e) => handleChange('employees', Number(e.target.value))}
+                value={formData.employees ?? ''}
+                placeholder="Enter headcount"
+                onChange={(e) =>
+                  handleChange('employees', e.target.value === '' ? null : Number(e.target.value))
+                }
                 className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600 text-sm font-medium text-slate-900 outline-hidden"
                 min={1}
               />
@@ -201,8 +207,10 @@ export const BusinessProfilePage: React.FC<BusinessProfilePageProps> = ({
               </label>
               <input
                 type="number"
-                value={formData.workingDaysPerMonth}
-                onChange={(e) => handleChange('workingDaysPerMonth', Number(e.target.value))}
+                value={formData.workingDaysPerMonth ?? ''}
+                onChange={(e) =>
+                  handleChange('workingDaysPerMonth', e.target.value === '' ? null : Number(e.target.value))
+                }
                 className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600 text-sm font-medium text-slate-900 outline-hidden"
                 min={1}
                 max={31}
@@ -217,8 +225,10 @@ export const BusinessProfilePage: React.FC<BusinessProfilePageProps> = ({
               </label>
               <input
                 type="number"
-                value={formData.operatingHoursPerDay}
-                onChange={(e) => handleChange('operatingHoursPerDay', Number(e.target.value))}
+                value={formData.operatingHoursPerDay ?? ''}
+                onChange={(e) =>
+                  handleChange('operatingHoursPerDay', e.target.value === '' ? null : Number(e.target.value))
+                }
                 className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600 text-sm font-medium text-slate-900 outline-hidden"
                 min={1}
                 max={24}
@@ -233,7 +243,7 @@ export const BusinessProfilePage: React.FC<BusinessProfilePageProps> = ({
               </label>
               <input
                 type="text"
-                value={formData.productionVolume}
+                value={formData.productionVolume ?? ''}
                 onChange={(e) => handleChange('productionVolume', e.target.value)}
                 placeholder="e.g. 42,000 meters / month"
                 className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600 text-sm font-medium text-slate-900 outline-hidden"
@@ -247,8 +257,10 @@ export const BusinessProfilePage: React.FC<BusinessProfilePageProps> = ({
               </label>
               <input
                 type="number"
-                value={formData.facilityAreaSqFt}
-                onChange={(e) => handleChange('facilityAreaSqFt', Number(e.target.value))}
+                value={formData.facilityAreaSqFt ?? ''}
+                onChange={(e) =>
+                  handleChange('facilityAreaSqFt', e.target.value === '' ? null : Number(e.target.value))
+                }
                 className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600 text-sm font-medium text-slate-900 outline-hidden"
               />
               <p className="text-[11px] text-slate-600 mt-1">Calculates rooftop solar potential and rainwater capture.</p>
@@ -261,7 +273,7 @@ export const BusinessProfilePage: React.FC<BusinessProfilePageProps> = ({
               </label>
               <input
                 type="email"
-                value={formData.contactEmail}
+                value={formData.contactEmail ?? ''}
                 onChange={(e) => handleChange('contactEmail', e.target.value)}
                 className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600 text-sm font-medium text-slate-900 outline-hidden"
               />

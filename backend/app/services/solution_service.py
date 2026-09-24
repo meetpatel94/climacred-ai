@@ -1,7 +1,7 @@
 from typing import List, Dict, Any, Optional
 from app.climate_engine.recommendations import SOLUTION_CATALOG, generate_recommendations
 from app.services.profile_service import get_profile
-from app.services.assessment_service import get_assessment
+from app.services.assessment_service import get_assessment, has_assessment_data
 from app.services.fingerprint_service import get_latest_fingerprint, generate_and_save_fingerprint
 
 DEFAULT_USER_ID = "default"
@@ -18,11 +18,21 @@ def get_solution_by_id(solution_id: str) -> Optional[Dict[str, Any]]:
     return None
 
 def get_personalized_recommendations(user_id: str = DEFAULT_USER_ID, top_n: int = 5) -> List[Dict[str, Any]]:
+    """Recommendations are only produced from real stored user data.
+
+    With an empty database there is nothing to personalise against, so an empty
+    list is returned (previously demo defaults were implicitly assumed).
+    """
     profile = get_profile(user_id)
     assessment = get_assessment(user_id)
+    if not profile or not has_assessment_data(assessment):
+        return []
     fingerprint = get_latest_fingerprint(user_id)
     if not fingerprint:
-        fingerprint = generate_and_save_fingerprint(user_id)
+        try:
+            fingerprint = generate_and_save_fingerprint(user_id)
+        except ValueError:
+            return []
     recs = generate_recommendations(profile, assessment, fingerprint, top_n=top_n)
     return recs
 

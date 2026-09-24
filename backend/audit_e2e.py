@@ -318,9 +318,14 @@ check("invalid status -> 400", r.status_code == 400, str(r.status_code))
 r = c.post("/api/climate-fingerprint/forecast", json={"historical_data": [{"month": "Jan", "consumptionKwh": 1}], "metric_key": "consumptionKwh"})
 check("forecast with insufficient data -> graceful status", r.status_code == 200 and r.json().get("status") == "insufficient_data", r.text[:120])
 
-# Restore seeded state for demo (reset to default textile profile + default assessment)
-print("\n========== PROFILE ALIAS-ONLY UPDATE REGRESSION ==========")
+# ============================================================
+# PROFILE PARTIAL-UPDATE REGRESSION (no fabricated defaults)
+# ============================================================
+print("\n========== PROFILE PARTIAL-UPDATE REGRESSION ==========")
 c.post("/api/profile/reset")
+empty_profile = c.get("/api/profile").json()
+check("reset clears the stored profile (returns null, not demo data)", empty_profile is None, str(empty_profile))
+
 r = c.patch("/api/profile", json={"businessType": "Snacks Manufacturing"})  # camelCase alias only
 check("alias-only PATCH businessType persists", r.json().get("businessType") == "Snacks Manufacturing", str(r.json().get("businessType")))
 r = c.patch("/api/profile", json={"business_type": "Frozen Foods"})  # snake_case canonical only
@@ -329,15 +334,14 @@ r = c.patch("/api/profile", json={"name": "Alias Test Co."})  # name alias only
 check("alias-only PATCH name persists", r.json().get("business_name") == "Alias Test Co.", str(r.json().get("business_name")))
 r = c.get("/api/profile")
 check("alias updates survive re-read", r.json().get("business_name") == "Alias Test Co." and r.json().get("businessType") == "Frozen Foods")
-check("unrelated stored fields not clobbered by partial update", r.json().get("industry") in ("Textile", "Food & Beverage"), str(r.json().get("industry")))
+check("fields never submitted stay empty (no invented defaults)", r.json().get("industry") is None and r.json().get("employees") is None, str(r.json().get("industry")))
+check("previously stored fields are not clobbered by a partial update", r.json().get("name") == "Alias Test Co." and r.json().get("businessType") == "Frozen Foods")
 
-print("\n========== RESTORE DEFAULT SEEDED STATE ==========")
+print("\n========== CLEANUP ==========")
 c.post("/api/profile/reset")
-c.post("/api/assessment", json={})
-c.post("/api/climate-fingerprint/generate")
-c.post("/api/impact", json={"before": {"energy_kwh": 10000, "water_litres": 80000, "waste_kg": 2000},
-                            "after": {"energy_kwh": 7200, "water_litres": 61000, "waste_kg": 1350}})
-print("\n(restored default seeded state for demo)")
+print("Business profile cleared. This developer-only audit leaves its two fictional test")
+print("businesses' assessment/fingerprint/impact records in the database; restart the backend")
+print("(in-memory DB) or clear the MongoDB collections to return to a truly empty state.")
 
 # ============================================================
 print(f"\n================= AUDIT RESULT: {len(PASS)} passed, {len(FAIL)} failed =================")

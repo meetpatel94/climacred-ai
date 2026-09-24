@@ -7,6 +7,8 @@ interface AIInsightCardProps {
   actionText?: string;
   onActionClick?: () => void;
   type?: 'insight' | 'warning' | 'recommendation';
+  /** Where the text comes from - keeps the badge honest about its source. */
+  source?: 'calculated' | 'ai';
 }
 
 export const AIInsightCard: React.FC<AIInsightCardProps> = ({
@@ -15,6 +17,7 @@ export const AIInsightCard: React.FC<AIInsightCardProps> = ({
   actionText,
   onActionClick,
   type = 'insight',
+  source = 'calculated',
 }) => {
   const isWarning = type === 'warning';
 
@@ -39,8 +42,14 @@ export const AIInsightCard: React.FC<AIInsightCardProps> = ({
             <span className="text-xs font-bold uppercase tracking-wider text-emerald-800">
               {title}
             </span>
-            <span className="text-[10px] font-semibold bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded">
-              AI Forecast
+            <span
+              className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${
+                source === 'ai'
+                  ? 'bg-emerald-100 text-emerald-800'
+                  : 'bg-slate-100 text-slate-600'
+              }`}
+            >
+              {source === 'ai' ? 'AI interpretation' : 'From your calculated data'}
             </span>
           </div>
           <p className="text-sm font-medium text-slate-700 leading-relaxed">{insight}</p>

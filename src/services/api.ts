@@ -11,29 +11,22 @@ import {
   ImpactVerificationMetric,
   UserPreferences,
   AIDashboardInsightsResponse,
+  AIChatResponse,
 } from '../types';
 
-import {
-  INITIAL_BUSINESS_PROFILE,
-  INITIAL_ASSESSMENT_DATA,
-  INITIAL_CLIMATE_FINGERPRINT,
-  GREEN_SOLUTIONS_LIBRARY,
-  INITIAL_TRANSFORMATION_PLAN,
-  INITIAL_IMPACT_VERIFICATION,
-  INITIAL_PREFERENCES,
-} from './mockData';
+import { DEFAULT_USER_PREFERENCES } from './defaults';
 
 // ---------------------------------------------------------------------------
 // Config & Helpers
 // ---------------------------------------------------------------------------
 // VITE_API_URL semantics:
-//   - not defined        -> dev default http://localhost:8000
-//   - set to "" (empty)  -> same-origin: requests go to /api/... and are proxied
-//                           by the vite dev/preview server to the backend
-//   - set to a URL       -> that URL is used verbatim
-const API_BASE_URL = import.meta.env.VITE_API_URL !== undefined
-  ? import.meta.env.VITE_API_URL
-  : 'http://localhost:8000';
+//   - not defined  -> same-origin: requests go to /api/... and the vite dev/preview
+//                     server proxies them to the backend (works in any browser)
+//   - set to ""    -> same as not defined (same-origin)
+//   - set to a URL -> that URL is used verbatim (e.g. a deployed API host)
+const API_BASE_URL = import.meta.env.VITE_API_URL
+  ? String(import.meta.env.VITE_API_URL).replace(/\/$/, '')
+  : '';
 const API_TIMEOUT_MS = 8000;
 
 // Helper to get base without trailing slash
@@ -90,30 +83,30 @@ async function apiFetch<T>(path: string, options: RequestInit & { timeoutMs?: nu
   }
 }
 
-// Normalize backend profile to frontend BusinessProfile
-function normalizeProfile(raw: any): BusinessProfile {
-  if (!raw) return { ...INITIAL_BUSINESS_PROFILE };
+// Normalize backend profile to frontend BusinessProfile.
+// Nothing is invented: a field the user has not provided stays null.
+function normalizeProfile(raw: any): BusinessProfile | null {
+  if (!raw || typeof raw !== 'object') return null;
   return {
-    name: raw.name || raw.business_name || INITIAL_BUSINESS_PROFILE.name,
-    industry: raw.industry || INITIAL_BUSINESS_PROFILE.industry,
-    businessType: raw.businessType || raw.business_type || INITIAL_BUSINESS_PROFILE.businessType,
-    location: raw.location || INITIAL_BUSINESS_PROFILE.location,
-    employees: typeof raw.employees === 'number' ? raw.employees : INITIAL_BUSINESS_PROFILE.employees,
-    workingDaysPerMonth: raw.workingDaysPerMonth ?? raw.working_days ?? INITIAL_BUSINESS_PROFILE.workingDaysPerMonth,
-    productionVolume: raw.productionVolume || raw.production_volume || INITIAL_BUSINESS_PROFILE.productionVolume,
-    operatingHoursPerDay: raw.operatingHoursPerDay ?? raw.operating_hours ?? INITIAL_BUSINESS_PROFILE.operatingHoursPerDay,
-    businessSize: raw.businessSize || raw.business_size || INITIAL_BUSINESS_PROFILE.businessSize,
-    facilityAreaSqFt: raw.facilityAreaSqFt ?? raw.facility_area_sqft ?? INITIAL_BUSINESS_PROFILE.facilityAreaSqFt,
-    contactEmail: raw.contactEmail || raw.contact_email || INITIAL_BUSINESS_PROFILE.contactEmail,
-    phone: raw.phone || INITIAL_BUSINESS_PROFILE.phone,
+    name: raw.name ?? raw.business_name ?? null,
+    industry: raw.industry ?? null,
+    businessType: raw.businessType ?? raw.business_type ?? null,
+    location: raw.location ?? null,
+    employees: raw.employees ?? null,
+    workingDaysPerMonth: raw.workingDaysPerMonth ?? raw.working_days ?? null,
+    productionVolume: raw.productionVolume ?? raw.production_volume ?? null,
+    operatingHoursPerDay: raw.operatingHoursPerDay ?? raw.operating_hours ?? null,
+    businessSize: raw.businessSize ?? raw.business_size ?? null,
+    facilityAreaSqFt: raw.facilityAreaSqFt ?? raw.facility_area_sqft ?? null,
+    contactEmail: raw.contactEmail ?? raw.contact_email ?? null,
+    phone: raw.phone ?? null,
   };
 }
 
-// Normalize fingerprint backend -> frontend ClimateFingerprint
-function normalizeFingerprint(raw: any): ClimateFingerprint {
-  if (!raw) return JSON.parse(JSON.stringify(INITIAL_CLIMATE_FINGERPRINT));
-  const overallScore = raw.overallScore ?? raw.overall_score ?? raw.overallScore ?? 58;
-  const scoreLabel = raw.scoreLabel ?? raw.score_label ?? 'Transition Stage';
+// Normalize fingerprint backend -> frontend ClimateFingerprint.
+// Returns null when nothing has been calculated yet (no fabricated scores).
+function normalizeFingerprint(raw: any): ClimateFingerprint | null {
+  if (!raw || raw.overallScore === undefined || raw.overallScore === null) return null;
   const dimensions = (raw.dimensions || []).map((d: any) => ({
     dimension: d.dimension,
     score: d.score,
@@ -123,22 +116,21 @@ function normalizeFingerprint(raw: any): ClimateFingerprint {
     improvementOpportunity: d.improvementOpportunity || d.improvement_opportunity || '',
     potentialReduction: d.potentialReduction || d.potential_reduction || '',
   }));
-  // Fallback to mock dimensions if empty
-  const finalDims = dimensions.length ? dimensions : INITIAL_CLIMATE_FINGERPRINT.dimensions;
+  if (!dimensions.length) return null;
   return {
-    overallScore,
-    scoreLabel,
-    benchmarkPercentile: raw.benchmarkPercentile ?? raw.benchmark_percentile ?? 46,
-    summaryNote: raw.summaryNote || raw.summary_note || INITIAL_CLIMATE_FINGERPRINT.summaryNote,
-    topImprovementDimensions: raw.topImprovementDimensions || raw.top_improvement_dimensions || INITIAL_CLIMATE_FINGERPRINT.topImprovementDimensions,
-    dimensions: finalDims,
+    overallScore: raw.overallScore,
+    scoreLabel: raw.scoreLabel ?? raw.score_label ?? '',
+    benchmarkPercentile: raw.benchmarkPercentile ?? raw.benchmark_percentile ?? null as any,
+    summaryNote: raw.summaryNote || raw.summary_note || '',
+    topImprovementDimensions: raw.topImprovementDimensions || raw.top_improvement_dimensions || [],
+    dimensions,
   };
 }
 
-// Normalize solution catalog
+// Normalize solution catalog (platform content served by the backend)
 function normalizeSolutions(raw: any): GreenSolution[] {
   const list = raw?.solutions || raw || [];
-  if (!Array.isArray(list) || list.length === 0) return [...GREEN_SOLUTIONS_LIBRARY];
+  if (!Array.isArray(list)) return [];
   return list.map((s: any) => ({
     id: s.id,
     title: s.title || s.name,
@@ -161,23 +153,20 @@ function normalizeSolutions(raw: any): GreenSolution[] {
 // ---------------------------------------------------------------------------
 // Profile API
 // ---------------------------------------------------------------------------
-export async function getBusinessProfile(): Promise<BusinessProfile> {
+export async function getBusinessProfile(): Promise<BusinessProfile | null> {
   try {
     const raw = await apiFetch<any>('/api/profile');
     const normalized = normalizeProfile(raw);
     cachedProfile = normalized;
-    return { ...normalized };
+    return normalized ? { ...normalized } : null;
   } catch (err) {
-    console.warn('getBusinessProfile backend failed, using mock fallback', err);
-    // If backend unavailable in dev, fallback to mock but indicate error via console
-    // For production, throw to let UI show error
-    if (cachedProfile) return { ...cachedProfile };
-    // Try mock
-    return { ...INITIAL_BUSINESS_PROFILE };
+    console.warn('getBusinessProfile failed', err);
+    // Never fabricate a business profile: return null (or the last known real one).
+    return cachedProfile ? { ...cachedProfile } : null;
   }
 }
 
-export async function saveBusinessProfile(updated: Partial<BusinessProfile>): Promise<BusinessProfile> {
+export async function saveBusinessProfile(updated: Partial<BusinessProfile>): Promise<BusinessProfile | null> {
   try {
     // Map frontend to backend alias but backend handles both
     const payload: any = { ...updated };
@@ -216,19 +205,19 @@ export async function saveBusinessProfile(updated: Partial<BusinessProfile>): Pr
     });
     const normalized = normalizeProfile(raw);
     cachedProfile = normalized;
-    return { ...normalized };
+    return normalized ? { ...normalized } : null;
   } catch (err: any) {
     console.error('saveBusinessProfile failed', err);
     throw new Error(err.message || 'Failed to update business profile');
   }
 }
 
-export async function resetBusinessProfile(): Promise<BusinessProfile> {
+export async function resetBusinessProfile(): Promise<BusinessProfile | null> {
   try {
     const raw = await apiFetch<any>('/api/profile/reset', { method: 'POST' });
     const normalized = normalizeProfile(raw);
     cachedProfile = normalized;
-    return { ...normalized };
+    return normalized ? { ...normalized } : null;
   } catch (err: any) {
     throw new Error(err.message || 'Failed to reset profile');
   }
@@ -237,21 +226,20 @@ export async function resetBusinessProfile(): Promise<BusinessProfile> {
 // ---------------------------------------------------------------------------
 // Assessment API
 // ---------------------------------------------------------------------------
-export async function getClimateAssessment(): Promise<ClimateAssessmentData> {
+export async function getClimateAssessment(): Promise<ClimateAssessmentData | null> {
   try {
     const raw = await apiFetch<any>('/api/assessment');
-    // Backend returns same shape as frontend
-    // Ensure deep copy
+    if (!raw || typeof raw !== 'object') return null;
     cachedAssessment = JSON.parse(JSON.stringify(raw));
     return JSON.parse(JSON.stringify(raw));
   } catch (err) {
-    console.warn('getClimateAssessment fallback to mock', err);
-    if (cachedAssessment) return JSON.parse(JSON.stringify(cachedAssessment));
-    return JSON.parse(JSON.stringify(INITIAL_ASSESSMENT_DATA));
+    console.warn('getClimateAssessment failed', err);
+    // No stored assessment -> null (the UI shows an empty state, never demo values).
+    return cachedAssessment ? JSON.parse(JSON.stringify(cachedAssessment)) : null;
   }
 }
 
-export async function saveClimateAssessment(data: ClimateAssessmentData): Promise<{ success: boolean; fingerprint: ClimateFingerprint }> {
+export async function saveClimateAssessment(data: ClimateAssessmentData): Promise<{ success: boolean; fingerprint: ClimateFingerprint | null }> {
   try {
     // POST assessment (full)
     await apiFetch<any>('/api/assessment', {
@@ -260,7 +248,7 @@ export async function saveClimateAssessment(data: ClimateAssessmentData): Promis
     });
     cachedAssessment = JSON.parse(JSON.stringify(data));
     // After assessment, generate fingerprint (invalidated per backend logic)
-    let fingerprint: ClimateFingerprint;
+    let fingerprint: ClimateFingerprint | null;
     try {
       const fpRaw = await apiFetch<any>('/api/climate-fingerprint/generate', { method: 'POST' });
       fingerprint = normalizeFingerprint(fpRaw);
@@ -276,7 +264,7 @@ export async function saveClimateAssessment(data: ClimateAssessmentData): Promis
   }
 }
 
-export async function patchClimateAssessment(partial: Partial<ClimateAssessmentData>): Promise<ClimateAssessmentData> {
+export async function patchClimateAssessment(partial: Partial<ClimateAssessmentData>): Promise<ClimateAssessmentData | null> {
   try {
     const raw = await apiFetch<any>('/api/assessment', {
       method: 'PATCH',
@@ -292,17 +280,19 @@ export async function patchClimateAssessment(partial: Partial<ClimateAssessmentD
 // ---------------------------------------------------------------------------
 // Fingerprint API
 // ---------------------------------------------------------------------------
-export async function getClimateFingerprint(): Promise<ClimateFingerprint> {
+export async function getClimateFingerprint(): Promise<ClimateFingerprint | null> {
   try {
     const raw = await apiFetch<any>('/api/climate-fingerprint');
     return normalizeFingerprint(raw);
   } catch (err) {
-    console.warn('getClimateFingerprint fallback to mock', err);
-    return JSON.parse(JSON.stringify(INITIAL_CLIMATE_FINGERPRINT));
+    console.warn('getClimateFingerprint failed', err);
+    // No stored data -> null; the fingerprint page shows the "complete your
+    // assessment" empty state instead of a demo score.
+    return null;
   }
 }
 
-export async function generateClimateFingerprint(): Promise<ClimateFingerprint> {
+export async function generateClimateFingerprint(): Promise<ClimateFingerprint | null> {
   try {
     const raw = await apiFetch<any>('/api/climate-fingerprint/generate', { method: 'POST' });
     return normalizeFingerprint(raw);
@@ -365,11 +355,9 @@ export async function getGreenSolutions(categoryFilter?: string): Promise<GreenS
     const raw = await apiFetch<any>(`/api/solutions${q}`);
     return normalizeSolutions(raw);
   } catch (err) {
-    console.warn('getGreenSolutions fallback to mock', err);
-    if (!categoryFilter || categoryFilter === 'All') {
-      return [...GREEN_SOLUTIONS_LIBRARY];
-    }
-    return GREEN_SOLUTIONS_LIBRARY.filter((s) => s.category.toLowerCase() === categoryFilter.toLowerCase());
+    console.warn('getGreenSolutions failed', err);
+    // Platform catalog comes from the backend only - no local copy is invented.
+    return [];
   }
 }
 
@@ -405,7 +393,7 @@ export async function runScenarioSimulation(selectedSolutionIds: string[]): Prom
       co2ReductionTonnes: raw.emission_change?.co2ReductionTonnes ?? raw.emission_change?.reduction_tonnes_co2_per_year ?? 0,
       co2ReductionPercent: raw.emission_change?.co2ReductionPercent ?? raw.emission_change?.reduction_percent ?? 0,
       estimatedPaybackYears: raw.payback_period_years ?? raw.estimatedPaybackYears ?? 0,
-      projectedClimateScore: raw.projected_climate_score ?? raw.projectedClimateScore ?? 58,
+      projectedClimateScore: raw.projected_climate_score ?? raw.projectedClimateScore ?? 0,
     };
   } catch (err: any) {
     console.error('runScenarioSimulation failed', err);
@@ -432,12 +420,11 @@ export async function runScenarioSimulationWithScale(selectedSolutionIds: string
 export async function getTransformationPlan(): Promise<TransformationPhaseItem[]> {
   try {
     const raw = await apiFetch<any>('/api/transformation-plan');
-    const list = raw.plan || raw || [];
-    if (Array.isArray(list) && list.length) return list as TransformationPhaseItem[];
-    return [...INITIAL_TRANSFORMATION_PLAN];
+    const list = raw?.plan || raw || [];
+    return Array.isArray(list) ? (list as TransformationPhaseItem[]) : [];
   } catch (err) {
-    console.warn('getTransformationPlan fallback', err);
-    return [...INITIAL_TRANSFORMATION_PLAN];
+    console.warn('getTransformationPlan failed', err);
+    return [];
   }
 }
 
@@ -475,18 +462,18 @@ export async function getImpactVerification(): Promise<ImpactVerificationMetric[
       return raw.metrics as ImpactVerificationMetric[];
     }
     if (raw.records && raw.records.length) {
-      // If records exist, derive metrics from latest
+      // If records exist, derive metrics from the latest submitted record
       const latest = raw.records[0];
       if (latest.calculated_metrics) {
-        // Convert to frontend shape already handled by backend fallback in /metrics
         const metricsRes = await apiFetch<any>('/api/impact/metrics');
         if (metricsRes.metrics) return metricsRes.metrics;
       }
     }
-    return [...INITIAL_IMPACT_VERIFICATION];
+    // Nothing submitted yet -> empty list (no demo before/after metrics).
+    return [];
   } catch (err) {
-    console.warn('getImpactVerification fallback', err);
-    return [...INITIAL_IMPACT_VERIFICATION];
+    console.warn('getImpactVerification failed', err);
+    return [];
   }
 }
 
@@ -525,11 +512,35 @@ export async function generateClimateReport(): Promise<any> {
 }
 
 // ---------------------------------------------------------------------------
-// Gemini AI dashboard intelligence (Phase 3)
+// Stored history (real records only - powers the charts and trend analysis)
+// ---------------------------------------------------------------------------
+export interface FingerprintSnapshot {
+  created_at: string | null;
+  overall_score: number | null;
+  score_label: string | null;
+  dimension_scores: Record<string, number | null>;
+  dimension_metrics: Record<string, Record<string, number | null>>;
+}
+
+/** Stored fingerprint snapshots (oldest → newest). Empty until real data exists. */
+export async function getClimateFingerprintHistory(limit = 24): Promise<FingerprintSnapshot[]> {
+  try {
+    const raw = await apiFetch<any>(`/api/climate-fingerprint/history?limit=${limit}`);
+    const snapshots = raw?.snapshots || [];
+    return Array.isArray(snapshots) ? snapshots : [];
+  } catch (err) {
+    console.warn('getClimateFingerprintHistory failed', err);
+    return [];
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Gemini AI dashboard intelligence + chat (Phase 3)
 // The Gemini API key lives only in the backend environment; the browser never
-// sees it. The backend returns a calculated insight when Gemini is unavailable.
+// sees it. The backend returns a calculated answer when Gemini is unavailable.
 // ---------------------------------------------------------------------------
 export const AI_INSIGHT_TIMEOUT_MS = 30000;
+export const AI_CHAT_TIMEOUT_MS = 30000;
 
 export async function getAIDashboardInsights(refresh = false): Promise<AIDashboardInsightsResponse> {
   const query = refresh ? '?refresh=true' : '';
@@ -538,21 +549,51 @@ export async function getAIDashboardInsights(refresh = false): Promise<AIDashboa
   });
 }
 
+/**
+ * Ask the ClimaCred AI Assistant a question about the user's own stored data.
+ * The backend collects the context automatically; the browser only sends the
+ * question plus the current session's turns (so follow-ups resolve correctly).
+ */
+export async function askAIAssistant(
+  message: string,
+  history: { role: 'user' | 'assistant'; content: string }[] = []
+): Promise<AIChatResponse> {
+  return await apiFetch<AIChatResponse>('/api/ai/chat', {
+    method: 'POST',
+    body: JSON.stringify({ message, history }),
+    timeoutMs: AI_CHAT_TIMEOUT_MS,
+  });
+}
+
+/** Suggested starter questions (data-aware, generated by the backend). */
+export async function getAIChatSuggestions(): Promise<{ has_data: boolean; suggestions: string[] }> {
+  try {
+    return await apiFetch<{ has_data: boolean; suggestions: string[] }>('/api/ai/chat/suggestions');
+  } catch {
+    return { has_data: false, suggestions: [] };
+  }
+}
+
+/** Is the Gemini layer configured on the backend? (no key is ever returned) */
+export async function getAIStatus(): Promise<{ gemini_configured: boolean; model: string } | null> {
+  try {
+    return await apiFetch<{ gemini_configured: boolean; model: string }>('/api/ai/status');
+  } catch {
+    return null;
+  }
+}
+
 // ---------------------------------------------------------------------------
-// User Preferences (still mock-backed unless backend implements)
+// User Preferences (local platform settings - persisted in localStorage)
 // ---------------------------------------------------------------------------
 export async function getUserPreferences(): Promise<UserPreferences> {
-  // Try backend if exists, else mock
   try {
-    const raw = await apiFetch<any>('/api/profile'); // no preferences endpoint yet
-    // If backend has preferences endpoint in future, we'd call it
-    // For now, return mock with localStorage persistence
     const stored = localStorage.getItem('climacred_preferences');
     if (stored) return JSON.parse(stored);
-    return { ...INITIAL_PREFERENCES };
   } catch {
-    return { ...INITIAL_PREFERENCES };
+    // localStorage unavailable - fall through to platform defaults
   }
+  return { ...DEFAULT_USER_PREFERENCES };
 }
 
 export async function saveUserPreferences(prefs: Partial<UserPreferences>): Promise<UserPreferences> {

@@ -152,9 +152,9 @@ export const Header: React.FC<HeaderProps> = ({
 
           <div className="h-6 w-[1px] bg-slate-200 mx-1 hidden sm:block" />
 
-          {/* Notification bell mock */}
+          {/* Notification bell - no fabricated status claims */}
           <button
-            onClick={() => alert('ClimaCred AI Notifications: All 6 resource monitors operating normally.')}
+            onClick={() => alert('Notifications: ClimaCred reports alerts only from your stored data. No alerts are configured yet.')}
             className="p-2 rounded-xl text-slate-500 hover:text-slate-800 hover:bg-slate-100 relative transition-colors"
             title="System alerts"
           >

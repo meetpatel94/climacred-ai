@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from app.database.mongodb import get_collection
 from app.database.collections import COLLECTIONS
 from app.services.profile_service import get_profile
-from app.services.assessment_service import get_assessment
+from app.services.assessment_service import get_assessment, has_assessment_data
 from app.services.fingerprint_service import get_latest_fingerprint, generate_and_save_fingerprint
 from app.services.solution_service import get_personalized_recommendations
 from app.climate_engine.recommendations import SOLUTION_CATALOG
@@ -48,10 +48,18 @@ def _get_solution(sol_id: str):
 
 def generate_transformation_plan(user_id: str = DEFAULT_USER_ID) -> List[Dict[str, Any]]:
     # Use fingerprint + recommendations to prioritize
+    profile = get_profile(user_id)
+    assessment = get_assessment(user_id)
+    if not profile or not has_assessment_data(assessment):
+        # No stored business data => no personalised roadmap (empty, not fabricated).
+        return []
     recs = get_personalized_recommendations(user_id=user_id, top_n=8)
     fingerprint = get_latest_fingerprint(user_id)
     if not fingerprint:
-        fingerprint = generate_and_save_fingerprint(user_id)
+        try:
+            fingerprint = generate_and_save_fingerprint(user_id)
+        except ValueError:
+            return []
 
     # Sort recs by score already; map to plan items
     plan_items: List[Dict[str, Any]] = []

@@ -17,9 +17,15 @@ class Settings(BaseSettings):
     # Only the API key needs to be provided in the environment; everything else has a safe default.
     GEMINI_API_KEY: str = ""
     GEMINI_MODEL: str = "gemini-2.5-flash"
+    # Tried in order when the primary model is not available (e.g. a 404 from the
+    # Google API because the model name/version does not exist for this key).
+    GEMINI_MODEL_FALLBACKS: str = "gemini-2.5-flash,gemini-2.0-flash,gemini-1.5-flash"
     GEMINI_API_BASE: str = "https://generativelanguage.googleapis.com/v1beta"
     GEMINI_TIMEOUT_SECONDS: int = 25
     AI_INSIGHT_CACHE_MINUTES: int = 180
+    # --- Gemini chat assistant ---
+    AI_CHAT_MAX_HISTORY_TURNS: int = 12
+    AI_CHAT_MAX_MESSAGE_CHARS: int = 2000
     # Scoring weights configurable
     WEIGHT_ENERGY: float = 0.20
     WEIGHT_WATER: float = 0.20

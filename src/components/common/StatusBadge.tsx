@@ -30,10 +30,3 @@ export const ImpactBadge: React.FC<ImpactBadgeProps> = ({ level, size = 'md' }) 
     </span>
   );
 };
-
-export const DemoTag: React.FC<{ label?: string }> = ({ label = 'Demo / Illustrative Data' }) => (
-  <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-600 border border-slate-200">
-    <span className="w-1.5 h-1.5 rounded-full bg-slate-400 mr-1 animate-pulse" />
-    {label}
-  </span>
-);

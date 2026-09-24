@@ -13,6 +13,7 @@ import {
   saveUserPreferences,
 } from './services/api';
 
+import { emptyAssessmentDraft } from './services/defaults';
 import { Sidebar } from './components/layout/Sidebar';
 import { Header } from './components/layout/Header';
 
@@ -32,6 +33,7 @@ import { TransformationPlanPage } from './pages/TransformationPlanPage';
 import { ImpactVerificationPage } from './pages/ImpactVerificationPage';
 import { ClimateImpactReportPage } from './pages/ClimateImpactReportPage';
 import { SettingsPage } from './pages/SettingsPage';
+import { AIChatAssistant } from './components/chat/AIChatAssistant';
 
 import { CheckCircle2, AlertCircle, Info, X } from 'lucide-react';
 
@@ -48,8 +50,8 @@ export function App() {
   const [verification, setVerification] = useState<ImpactVerificationMetric[]>([]);
   const [preferences, setPreferences] = useState<UserPreferences | null>(null);
 
-  // Cross-page state: selected solution for simulator jump
-  const [selectedSolutionForSimulator, setSelectedSolutionForSimulator] = useState<string[]>(['sol-solar', 'sol-water-ro']);
+  // Cross-page state: solutions picked by the user for the simulator (empty until chosen)
+  const [selectedSolutionForSimulator, setSelectedSolutionForSimulator] = useState<string[]>([]);
 
   // Toast system
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
@@ -66,7 +68,8 @@ export function App() {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   };
 
-  // Initial data loading
+  // Initial data loading - only real stored data is loaded; missing data stays null
+  // so each page can render its own empty state.
   useEffect(() => {
     async function initData() {
       try {
@@ -86,8 +89,8 @@ export function App() {
         setVerification(verifData);
         setPreferences(prefData);
       } catch (err) {
-        console.error('Failed to load initial mock data', err);
-        addToast('error', 'Data Load Error', 'Could not load enterprise profile.');
+        console.error('Failed to load stored business data', err);
+        addToast('error', 'Data Load Error', 'Could not load your stored business data.');
       } finally {
         setLoading(false);
       }
@@ -115,9 +118,11 @@ export function App() {
     try {
       const res = await saveClimateAssessment(data);
       setAssessment(data);
-      if (res.fingerprint) {
+      if (res?.fingerprint) {
         setFingerprint(res.fingerprint);
       }
+      // A new assessment invalidates the stored plan - reload the real one.
+      setPlan(await getTransformationPlan());
       addToast('success', 'Assessment Analyzed', 'Climate Fingerprint diagnostic updated.');
       return res;
     } catch {
@@ -151,7 +156,7 @@ export function App() {
     );
   };
 
-  if (loading || !profile || !assessment || !fingerprint || !preferences) {
+  if (loading || !preferences) {
     return (
       <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4">
         <div className="w-12 h-12 rounded-2xl bg-emerald-600 flex items-center justify-center text-white font-black text-2xl animate-bounce">
@@ -175,6 +180,8 @@ export function App() {
         onNavigate={handleNavigate}
         mobileOpen={mobileMenuOpen}
         onCloseMobile={() => setMobileMenuOpen(false)}
+        businessName={profile?.name || null}
+        businessSize={profile?.businessSize || null}
       />
 
       {/* Main Content Area */}
@@ -186,9 +193,22 @@ export function App() {
         />
 
         <main className="flex-1 px-4 sm:px-6 lg:px-8 py-6 max-w-7xl w-full mx-auto">
-          {currentPage === 'landing' && <LandingPage onNavigate={handleNavigate} />}
+          {currentPage === 'landing' && (
+            <LandingPage
+              onNavigate={handleNavigate}
+              hasProfile={Boolean(profile?.name)}
+              hasAssessment={Boolean(assessment)}
+            />
+          )}
 
-          {currentPage === 'dashboard' && <DashboardPage onNavigate={handleNavigate} />}
+          {currentPage === 'dashboard' && (
+            <DashboardPage
+              onNavigate={handleNavigate}
+              profile={profile}
+              assessment={assessment}
+              fingerprint={fingerprint}
+            />
+          )}
 
           {currentPage === 'profile' && (
             <BusinessProfilePage
@@ -200,7 +220,7 @@ export function App() {
 
           {currentPage === 'assessment' && (
             <ClimateAssessmentPage
-              initialData={assessment}
+              initialData={assessment ?? emptyAssessmentDraft()}
               onSaveAssessment={handleSaveAssessment}
               onNavigate={handleNavigate}
             />
@@ -257,6 +277,8 @@ export function App() {
               profile={profile}
               fingerprint={fingerprint}
               verificationMetrics={verification}
+              hasAssessment={Boolean(assessment)}
+              onNavigate={handleNavigate}
             />
           )}
 
@@ -269,8 +291,11 @@ export function App() {
         </main>
       </div>
 
+      {/* Floating Gemini chat assistant (visible across all pages) */}
+      <AIChatAssistant />
+
       {/* Floating Toast Container */}
-      <div className="fixed bottom-4 right-4 z-50 flex flex-col gap-2 max-w-sm w-full pointer-events-none">
+      <div className="fixed bottom-20 right-4 z-50 flex flex-col gap-2 max-w-sm w-full pointer-events-none">
         {toasts.map((toast) => (
           <div
             key={toast.id}

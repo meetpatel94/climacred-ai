@@ -1,7 +1,16 @@
 """
-Seed script for ClimaCred AI demo business: ABC Textile Manufacturing
-Run: python seed.py
-Or: python -m seed
+DEVELOPER / TESTING UTILITY - NOT PART OF NORMAL APPLICATION STARTUP.
+
+Seeds an illustrative demo business ("ABC Textile Manufacturing") for local
+testing of the UI and engines. It must be run explicitly:
+
+    python seed.py --demo
+
+The backend never calls this module, so a normal `uvicorn app.main:app` start
+leaves the database empty until the user enters real data.
+
+Note: this script writes clearly-labelled SAMPLE data. Never point it at a
+production database.
 """
 import os
 import sys
@@ -103,7 +112,7 @@ def clear_demo_data():
     print("Cleared demo data for user default")
 
 def seed():
-    print("Seeding ClimaCred AI demo data...")
+    print("Seeding ClimaCred AI SAMPLE data (developer/testing utility)...")
     ensure_indexes()
     ensure_solutions_seeded()
     clear_demo_data()
@@ -147,4 +156,11 @@ def seed():
     print(" Dashboard should work immediately after setup.")
 
 if __name__ == "__main__":
+    if "--demo" not in sys.argv and "--yes" not in sys.argv:
+        print(
+            "Refusing to seed sample data without an explicit flag.\n"
+            "This utility is for development/testing only.\n"
+            "Run: python seed.py --demo"
+        )
+        sys.exit(1)
     seed()

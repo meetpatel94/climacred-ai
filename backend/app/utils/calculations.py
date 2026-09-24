@@ -7,6 +7,8 @@ from typing import Dict, Any
 from app.config import settings
 
 def calculate_energy_metrics(assessment: dict, profile: dict = None) -> Dict[str, Any]:
+    assessment = assessment or {}
+    profile = profile or {}
     """
     Energy calculations
     - monthly electricity consumption from assessment.energy.monthlyElectricityKwh
@@ -47,6 +49,8 @@ def calculate_energy_metrics(assessment: dict, profile: dict = None) -> Dict[str
     }
 
 def calculate_water_metrics(assessment: dict, profile: dict = None) -> Dict[str, Any]:
+    assessment = assessment or {}
+    profile = profile or {}
     water = assessment.get("water", {})
     monthly_litres = float(water.get("monthlyWaterLitres", water.get("monthly_water_litres", 0)) or 0)
     annual_litres = monthly_litres * 12
@@ -85,6 +89,7 @@ def calculate_water_metrics(assessment: dict, profile: dict = None) -> Dict[str,
     }
 
 def calculate_waste_metrics(assessment: dict) -> Dict[str, Any]:
+    assessment = assessment or {}
     waste = assessment.get("waste", {})
     organic = float(waste.get("organicWasteKgPerMonth", waste.get("organic_waste_kg", 0)) or 0)
     plastic = float(waste.get("plasticWasteKgPerMonth", waste.get("plastic_waste_kg", 0)) or 0)
@@ -129,6 +134,7 @@ def calculate_waste_metrics(assessment: dict) -> Dict[str, Any]:
     }
 
 def calculate_emissions_metrics(assessment: dict) -> Dict[str, Any]:
+    assessment = assessment or {}
     emissions = assessment.get("emissions", {})
     energy = assessment.get("energy", {})
 
@@ -186,6 +192,7 @@ def calculate_emissions_metrics(assessment: dict) -> Dict[str, Any]:
     }
 
 def calculate_mobility_metrics(assessment: dict) -> Dict[str, Any]:
+    assessment = assessment or {}
     mobility = assessment.get("mobility", {})
     vehicles = int(mobility.get("deliveryVehiclesCount", mobility.get("delivery_vehicles", 0)) or 0)
     monthly_fuel = float(mobility.get("monthlyFleetFuelLitres", mobility.get("monthly_fuel_litres", 0)) or 0)
@@ -252,6 +259,8 @@ def calculate_mobility_metrics(assessment: dict) -> Dict[str, Any]:
     }
 
 def calculate_data_quality_score(profile: dict, assessment: dict) -> Dict[str, Any]:
+    profile = profile or {}
+    assessment = assessment or {}
     """
     Score completeness and reliability
     High: >85% fields filled, no defaults

@@ -20,71 +20,75 @@ export type PageId =
 
 export type ImpactSeverity = 'Low' | 'Moderate' | 'High' | 'Very High';
 
+// Numeric/text fields are nullable: a field that the user has not provided yet
+// must stay empty (null) instead of being filled with a fabricated default.
 export interface BusinessProfile {
-  name: string;
-  industry: string;
-  businessType: string;
-  location: string;
-  employees: number;
-  workingDaysPerMonth: number;
-  productionVolume: string;
-  operatingHoursPerDay: number;
-  businessSize: 'Micro' | 'Small' | 'Medium' | 'Mid-Market';
-  facilityAreaSqFt: number;
-  contactEmail: string;
-  phone: string;
+  name: string | null;
+  industry: string | null;
+  businessType: string | null;
+  location: string | null;
+  employees: number | null;
+  workingDaysPerMonth: number | null;
+  productionVolume: string | null;
+  operatingHoursPerDay: number | null;
+  businessSize: 'Micro' | 'Small' | 'Medium' | 'Mid-Market' | null;
+  facilityAreaSqFt: number | null;
+  contactEmail: string | null;
+  phone: string | null;
 }
 
+// Every field is optional/nullable: null means "not provided yet", which is what
+// the UI renders as an empty state. Real zeros entered by the user stay 0.
 export interface ClimateAssessmentData {
   energy: {
-    monthlyElectricityKwh: number;
-    monthlyElectricityBillInr: number;
-    dieselGeneratorHoursPerMonth: number;
-    generatorFuelLitresPerMonth: number;
-    existingSolarCapacityKw: number;
-    energyEfficientEquipmentPercent: number;
+    monthlyElectricityKwh: number | null;
+    monthlyElectricityBillInr: number | null;
+    dieselGeneratorHoursPerMonth: number | null;
+    generatorFuelLitresPerMonth: number | null;
+    existingSolarCapacityKw: number | null;
+    energyEfficientEquipmentPercent: number | null;
   };
   water: {
-    monthlyWaterLitres: number;
-    waterSource: 'Municipal' | 'Groundwater / Borewell' | 'Water Tanker' | 'Mixed';
-    waterRecyclingAvailable: boolean;
-    rainwaterHarvesting: boolean;
-    leakageFrequency: 'Never' | 'Rarely' | 'Monthly' | 'Frequent';
-    wastewaterTreatment: 'None' | 'Primary / Settling' | 'Full ETP / STP';
+    monthlyWaterLitres: number | null;
+    waterSource: 'Municipal' | 'Groundwater / Borewell' | 'Water Tanker' | 'Mixed' | '';
+    waterRecyclingAvailable: boolean | null;
+    rainwaterHarvesting: boolean | null;
+    leakageFrequency: 'Never' | 'Rarely' | 'Monthly' | 'Frequent' | '';
+    wastewaterTreatment: 'None' | 'Primary / Settling' | 'Full ETP / STP' | '';
   };
   waste: {
-    organicWasteKgPerMonth: number;
-    plasticWasteKgPerMonth: number;
-    paperWasteKgPerMonth: number;
-    industrialWasteKgPerMonth: number;
-    textileMaterialWasteKgPerMonth: number;
-    currentRecyclingPercent: number;
-    wasteSegregationPracticed: boolean;
+    organicWasteKgPerMonth: number | null;
+    plasticWasteKgPerMonth: number | null;
+    paperWasteKgPerMonth: number | null;
+    industrialWasteKgPerMonth: number | null;
+    textileMaterialWasteKgPerMonth: number | null;
+    currentRecyclingPercent: number | null;
+    wasteSegregationPracticed: boolean | null;
   };
   emissions: {
-    primaryFuel: 'Electricity Grid' | 'Diesel' | 'Natural Gas / PNG' | 'Coal / Biomass';
-    monthlyDieselLitres: number;
-    monthlyPetrolLitres: number;
-    monthlyNaturalGasKg: number;
+    primaryFuel: 'Electricity Grid' | 'Diesel' | 'Natural Gas / PNG' | 'Coal / Biomass' | '';
+    monthlyDieselLitres: number | null;
+    monthlyPetrolLitres: number | null;
+    monthlyNaturalGasKg: number | null;
     mainEmissionSources: string[];
-    airPollutionControlSystem: 'None' | 'Basic Scrubber' | 'Bag Filter / ESP' | 'Advanced Multi-Stage';
+    airPollutionControlSystem: 'None' | 'Basic Scrubber' | 'Bag Filter / ESP' | 'Advanced Multi-Stage' | '';
   };
   mobility: {
-    deliveryVehiclesCount: number;
-    vehicleFuelType: 'Diesel' | 'Petrol' | 'CNG' | 'Electric' | 'Mixed Fleet';
-    monthlyFleetFuelLitres: number;
-    employeeCommuteMode: 'Public Transport' | 'Two-Wheelers' | 'Company Bus' | 'Mixed';
-    evAdoptedPercent: number;
+    deliveryVehiclesCount: number | null;
+    vehicleFuelType: 'Diesel' | 'Petrol' | 'CNG' | 'Electric' | 'Mixed Fleet' | '';
+    monthlyFleetFuelLitres: number | null;
+    employeeCommuteMode: 'Public Transport' | 'Two-Wheelers' | 'Company Bus' | 'Mixed' | '';
+    evAdoptedPercent: number | null;
   };
   greenPractices: {
-    ledLighting: boolean;
-    solarPanels: boolean;
-    rainwaterHarvesting: boolean;
-    waterRecycling: boolean;
-    wasteSegregation: boolean;
-    energyEfficientMachinery: boolean;
-    evAdoption: boolean;
-    sustainableMaterials: boolean;
+    ledLighting: boolean | null;
+    solarPanels: boolean | null;
+    rainwaterHarvesting: boolean | null;
+    waterRecycling: boolean | null;
+    wasteSegregation: boolean | null;
+    energyEfficientMachinery: boolean | null;
+    evAdoption: boolean | null;
+    sustainableMaterials: boolean | null;
   };
 }
 
@@ -187,6 +191,7 @@ export interface AIDashboardInsightDetails {
   data_used: string[];
   reasoning_summary: string;
   historical_comparison: string;
+  why_it_matters?: string;
   main_risks: string[];
   recommended_actions: string[];
   related_recommendations: string[];
@@ -234,11 +239,13 @@ export interface AIDashboardHistory {
 }
 
 export interface AIDashboardInsightsResponse {
-  status: 'ok' | 'unavailable' | 'error' | string;
+  status: 'ok' | 'unavailable' | 'error' | 'no_data' | string;
   source: AISource;
   ai_available: boolean;
+  /** false when the user has not stored any business climate data yet. */
+  has_data?: boolean;
   notice: string | null;
-  reason?: string | null;
+  message?: string;
   model: string;
   cached: boolean;
   generated_at: string;
@@ -246,7 +253,36 @@ export interface AIDashboardInsightsResponse {
   disclaimer: string;
   calculated: AIDashboardCalculatedValues;
   history: AIDashboardHistory;
-  insight: AIDashboardInsight;
+  /** null in the empty-database state (no fabricated insight is returned). */
+  insight: AIDashboardInsight | null;
+}
+
+// --- Gemini chat assistant (Phase 3 live chat) ---
+export interface AIChatMessage {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  createdAt: string;
+  /** present on assistant messages */
+  source?: AISource;
+  ai_available?: boolean;
+  notice?: string | null;
+  pending?: boolean;
+  error?: string | null;
+}
+
+export interface AIChatResponse {
+  status: 'ok' | 'unavailable' | 'error' | 'invalid' | string;
+  source: AISource;
+  ai_available: boolean;
+  has_data: boolean;
+  reply: string;
+  notice?: string | null;
+  model: string;
+  generated_at: string;
+  number_audit: AINumberAudit;
+  suggestions: string[];
+  disclaimer: string;
 }
 
 export interface ToastMessage {
