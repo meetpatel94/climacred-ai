@@ -13,7 +13,6 @@ import {
   CheckCircle,
 } from 'lucide-react';
 import { ClimateAssessmentData, PageId } from '../types';
-import { DemoTag } from '../components/common/StatusBadge';
 
 interface ClimateAssessmentPageProps {
   initialData: ClimateAssessmentData;
@@ -80,7 +79,6 @@ export const ClimateAssessmentPage: React.FC<ClimateAssessmentPageProps> = ({
             <h2 className="text-xl font-extrabold text-slate-900 tracking-tight">
               Enterprise Climate Audit & Data Collection
             </h2>
-            <DemoTag />
           </div>
           <p className="text-xs text-slate-600">
             Fill in your resource consumption metrics. Clear units are indicated for monthly operational tracking.
@@ -167,11 +165,11 @@ export const ClimateAssessmentPage: React.FC<ClimateAssessmentPageProps> = ({
                 <div className="relative">
                   <input
                     type="number"
-                    value={data.energy.monthlyElectricityKwh}
+                    value={data.energy.monthlyElectricityKwh ?? ''}
                     onChange={(e) =>
                       setData({
                         ...data,
-                        energy: { ...data.energy, monthlyElectricityKwh: Number(e.target.value) },
+                        energy: { ...data.energy, monthlyElectricityKwh: e.target.value === '' ? null : Number(e.target.value) },
                       })
                     }
                     className="w-full pl-3.5 pr-20 py-2.5 rounded-xl border border-slate-300 focus:border-emerald-600 text-sm font-semibold text-slate-900 outline-hidden"
@@ -193,11 +191,11 @@ export const ClimateAssessmentPage: React.FC<ClimateAssessmentPageProps> = ({
                   </span>
                   <input
                     type="number"
-                    value={data.energy.monthlyElectricityBillInr}
+                    value={data.energy.monthlyElectricityBillInr ?? ''}
                     onChange={(e) =>
                       setData({
                         ...data,
-                        energy: { ...data.energy, monthlyElectricityBillInr: Number(e.target.value) },
+                        energy: { ...data.energy, monthlyElectricityBillInr: e.target.value === '' ? null : Number(e.target.value) },
                       })
                     }
                     className="w-full pl-8 pr-20 py-2.5 rounded-xl border border-slate-300 focus:border-emerald-600 text-sm font-semibold text-slate-900 outline-hidden"
@@ -216,11 +214,11 @@ export const ClimateAssessmentPage: React.FC<ClimateAssessmentPageProps> = ({
                 <div className="relative">
                   <input
                     type="number"
-                    value={data.energy.dieselGeneratorHoursPerMonth}
+                    value={data.energy.dieselGeneratorHoursPerMonth ?? ''}
                     onChange={(e) =>
                       setData({
                         ...data,
-                        energy: { ...data.energy, dieselGeneratorHoursPerMonth: Number(e.target.value) },
+                        energy: { ...data.energy, dieselGeneratorHoursPerMonth: e.target.value === '' ? null : Number(e.target.value) },
                       })
                     }
                     className="w-full pl-3.5 pr-24 py-2.5 rounded-xl border border-slate-300 focus:border-emerald-600 text-sm font-semibold text-slate-900 outline-hidden"
@@ -239,11 +237,11 @@ export const ClimateAssessmentPage: React.FC<ClimateAssessmentPageProps> = ({
                 <div className="relative">
                   <input
                     type="number"
-                    value={data.energy.generatorFuelLitresPerMonth}
+                    value={data.energy.generatorFuelLitresPerMonth ?? ''}
                     onChange={(e) =>
                       setData({
                         ...data,
-                        energy: { ...data.energy, generatorFuelLitresPerMonth: Number(e.target.value) },
+                        energy: { ...data.energy, generatorFuelLitresPerMonth: e.target.value === '' ? null : Number(e.target.value) },
                       })
                     }
                     className="w-full pl-3.5 pr-24 py-2.5 rounded-xl border border-slate-300 focus:border-emerald-600 text-sm font-semibold text-slate-900 outline-hidden"
@@ -262,11 +260,11 @@ export const ClimateAssessmentPage: React.FC<ClimateAssessmentPageProps> = ({
                 <div className="relative">
                   <input
                     type="number"
-                    value={data.energy.existingSolarCapacityKw}
+                    value={data.energy.existingSolarCapacityKw ?? ''}
                     onChange={(e) =>
                       setData({
                         ...data,
-                        energy: { ...data.energy, existingSolarCapacityKw: Number(e.target.value) },
+                        energy: { ...data.energy, existingSolarCapacityKw: e.target.value === '' ? null : Number(e.target.value) },
                       })
                     }
                     className="w-full pl-3.5 pr-20 py-2.5 rounded-xl border border-slate-300 focus:border-emerald-600 text-sm font-semibold text-slate-900 outline-hidden"
@@ -285,11 +283,11 @@ export const ClimateAssessmentPage: React.FC<ClimateAssessmentPageProps> = ({
                 <div className="relative">
                   <input
                     type="number"
-                    value={data.energy.energyEfficientEquipmentPercent}
+                    value={data.energy.energyEfficientEquipmentPercent ?? ''}
                     onChange={(e) =>
                       setData({
                         ...data,
-                        energy: { ...data.energy, energyEfficientEquipmentPercent: Number(e.target.value) },
+                        energy: { ...data.energy, energyEfficientEquipmentPercent: e.target.value === '' ? null : Number(e.target.value) },
                       })
                     }
                     className="w-full pl-3.5 pr-14 py-2.5 rounded-xl border border-slate-300 focus:border-emerald-600 text-sm font-semibold text-slate-900 outline-hidden"
@@ -327,11 +325,11 @@ export const ClimateAssessmentPage: React.FC<ClimateAssessmentPageProps> = ({
                 <div className="relative">
                   <input
                     type="number"
-                    value={data.water.monthlyWaterLitres}
+                    value={data.water.monthlyWaterLitres ?? ''}
                     onChange={(e) =>
                       setData({
                         ...data,
-                        water: { ...data.water, monthlyWaterLitres: Number(e.target.value) },
+                        water: { ...data.water, monthlyWaterLitres: e.target.value === '' ? null : Number(e.target.value) },
                       })
                     }
                     className="w-full pl-3.5 pr-24 py-2.5 rounded-xl border border-slate-300 focus:border-emerald-600 text-sm font-semibold text-slate-900 outline-hidden"
@@ -340,7 +338,7 @@ export const ClimateAssessmentPage: React.FC<ClimateAssessmentPageProps> = ({
                     litres / month
                   </span>
                 </div>
-                <p className="text-[11px] text-slate-600 mt-1">480,000 L equals ~480 kL / 16 tanker deliveries.</p>
+                <p className="text-[11px] text-slate-600 mt-1">Enter the volume you actually draw each month.</p>
               </div>
 
               <div>
@@ -348,7 +346,7 @@ export const ClimateAssessmentPage: React.FC<ClimateAssessmentPageProps> = ({
                   Primary Water Intake Source
                 </label>
                 <select
-                  value={data.water.waterSource}
+                  value={data.water.waterSource ?? ''}
                   onChange={(e) =>
                     setData({
                       ...data,
@@ -357,6 +355,7 @@ export const ClimateAssessmentPage: React.FC<ClimateAssessmentPageProps> = ({
                   }
                   className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:border-emerald-600 text-sm font-semibold text-slate-900 outline-hidden bg-white"
                 >
+                  <option value="">Select water source…</option>
                   <option value="Municipal">Municipal Industrial Line</option>
                   <option value="Groundwater / Borewell">Groundwater / Borewell</option>
                   <option value="Water Tanker">Private Water Tanker</option>
@@ -370,7 +369,7 @@ export const ClimateAssessmentPage: React.FC<ClimateAssessmentPageProps> = ({
                   Observed Pipe Leakage Frequency
                 </label>
                 <select
-                  value={data.water.leakageFrequency}
+                  value={data.water.leakageFrequency ?? ''}
                   onChange={(e) =>
                     setData({
                       ...data,
@@ -379,6 +378,7 @@ export const ClimateAssessmentPage: React.FC<ClimateAssessmentPageProps> = ({
                   }
                   className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:border-emerald-600 text-sm font-semibold text-slate-900 outline-hidden bg-white"
                 >
+                  <option value="">Select leakage frequency…</option>
                   <option value="Never">Never (Fully Inspected)</option>
                   <option value="Rarely">Rarely (Annual Repairs)</option>
                   <option value="Monthly">Monthly (Recurring Joint Leaks)</option>
@@ -392,7 +392,7 @@ export const ClimateAssessmentPage: React.FC<ClimateAssessmentPageProps> = ({
                   Wastewater / Effluent Treatment Sizing
                 </label>
                 <select
-                  value={data.water.wastewaterTreatment}
+                  value={data.water.wastewaterTreatment ?? ''}
                   onChange={(e) =>
                     setData({
                       ...data,
@@ -401,6 +401,7 @@ export const ClimateAssessmentPage: React.FC<ClimateAssessmentPageProps> = ({
                   }
                   className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:border-emerald-600 text-sm font-semibold text-slate-900 outline-hidden bg-white"
                 >
+                  <option value="">Select treatment level…</option>
                   <option value="None">None / Direct Drain</option>
                   <option value="Primary / Settling">Primary / Settling Tank Only</option>
                   <option value="Full ETP / STP">Full Multi-Stage ETP / STP</option>
@@ -432,11 +433,11 @@ export const ClimateAssessmentPage: React.FC<ClimateAssessmentPageProps> = ({
                 <div className="relative">
                   <input
                     type="number"
-                    value={data.waste.textileMaterialWasteKgPerMonth}
+                    value={data.waste.textileMaterialWasteKgPerMonth ?? ''}
                     onChange={(e) =>
                       setData({
                         ...data,
-                        waste: { ...data.waste, textileMaterialWasteKgPerMonth: Number(e.target.value) },
+                        waste: { ...data.waste, textileMaterialWasteKgPerMonth: e.target.value === '' ? null : Number(e.target.value) },
                       })
                     }
                     className="w-full pl-3.5 pr-20 py-2.5 rounded-xl border border-slate-300 focus:border-emerald-600 text-sm font-semibold text-slate-900 outline-hidden"
@@ -455,11 +456,11 @@ export const ClimateAssessmentPage: React.FC<ClimateAssessmentPageProps> = ({
                 <div className="relative">
                   <input
                     type="number"
-                    value={data.waste.industrialWasteKgPerMonth}
+                    value={data.waste.industrialWasteKgPerMonth ?? ''}
                     onChange={(e) =>
                       setData({
                         ...data,
-                        waste: { ...data.waste, industrialWasteKgPerMonth: Number(e.target.value) },
+                        waste: { ...data.waste, industrialWasteKgPerMonth: e.target.value === '' ? null : Number(e.target.value) },
                       })
                     }
                     className="w-full pl-3.5 pr-20 py-2.5 rounded-xl border border-slate-300 focus:border-emerald-600 text-sm font-semibold text-slate-900 outline-hidden"
@@ -478,11 +479,11 @@ export const ClimateAssessmentPage: React.FC<ClimateAssessmentPageProps> = ({
                 <div className="relative">
                   <input
                     type="number"
-                    value={data.waste.plasticWasteKgPerMonth}
+                    value={data.waste.plasticWasteKgPerMonth ?? ''}
                     onChange={(e) =>
                       setData({
                         ...data,
-                        waste: { ...data.waste, plasticWasteKgPerMonth: Number(e.target.value) },
+                        waste: { ...data.waste, plasticWasteKgPerMonth: e.target.value === '' ? null : Number(e.target.value) },
                       })
                     }
                     className="w-full pl-3.5 pr-20 py-2.5 rounded-xl border border-slate-300 focus:border-emerald-600 text-sm font-semibold text-slate-900 outline-hidden"
@@ -501,11 +502,11 @@ export const ClimateAssessmentPage: React.FC<ClimateAssessmentPageProps> = ({
                 <div className="relative">
                   <input
                     type="number"
-                    value={data.waste.currentRecyclingPercent}
+                    value={data.waste.currentRecyclingPercent ?? ''}
                     onChange={(e) =>
                       setData({
                         ...data,
-                        waste: { ...data.waste, currentRecyclingPercent: Number(e.target.value) },
+                        waste: { ...data.waste, currentRecyclingPercent: e.target.value === '' ? null : Number(e.target.value) },
                       })
                     }
                     className="w-full pl-3.5 pr-14 py-2.5 rounded-xl border border-slate-300 focus:border-emerald-600 text-sm font-semibold text-slate-900 outline-hidden"
@@ -541,7 +542,7 @@ export const ClimateAssessmentPage: React.FC<ClimateAssessmentPageProps> = ({
                   Primary Industrial Boiler Fuel
                 </label>
                 <select
-                  value={data.emissions.primaryFuel}
+                  value={data.emissions.primaryFuel ?? ''}
                   onChange={(e) =>
                     setData({
                       ...data,
@@ -550,6 +551,7 @@ export const ClimateAssessmentPage: React.FC<ClimateAssessmentPageProps> = ({
                   }
                   className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:border-emerald-600 text-sm font-semibold text-slate-900 outline-hidden bg-white"
                 >
+                  <option value="">Select primary fuel…</option>
                   <option value="Electricity Grid">Electricity Grid Only</option>
                   <option value="Diesel">Diesel / Furnace Oil</option>
                   <option value="Natural Gas / PNG">Natural Gas / PNG</option>
@@ -565,11 +567,11 @@ export const ClimateAssessmentPage: React.FC<ClimateAssessmentPageProps> = ({
                 <div className="relative">
                   <input
                     type="number"
-                    value={data.emissions.monthlyDieselLitres}
+                    value={data.emissions.monthlyDieselLitres ?? ''}
                     onChange={(e) =>
                       setData({
                         ...data,
-                        emissions: { ...data.emissions, monthlyDieselLitres: Number(e.target.value) },
+                        emissions: { ...data.emissions, monthlyDieselLitres: e.target.value === '' ? null : Number(e.target.value) },
                       })
                     }
                     className="w-full pl-3.5 pr-20 py-2.5 rounded-xl border border-slate-300 focus:border-emerald-600 text-sm font-semibold text-slate-900 outline-hidden"
@@ -586,7 +588,7 @@ export const ClimateAssessmentPage: React.FC<ClimateAssessmentPageProps> = ({
                   Air Pollution Abatement System
                 </label>
                 <select
-                  value={data.emissions.airPollutionControlSystem}
+                  value={data.emissions.airPollutionControlSystem ?? ''}
                   onChange={(e) =>
                     setData({
                       ...data,
@@ -627,11 +629,11 @@ export const ClimateAssessmentPage: React.FC<ClimateAssessmentPageProps> = ({
                 <div className="relative">
                   <input
                     type="number"
-                    value={data.mobility.deliveryVehiclesCount}
+                    value={data.mobility.deliveryVehiclesCount ?? ''}
                     onChange={(e) =>
                       setData({
                         ...data,
-                        mobility: { ...data.mobility, deliveryVehiclesCount: Number(e.target.value) },
+                        mobility: { ...data.mobility, deliveryVehiclesCount: e.target.value === '' ? null : Number(e.target.value) },
                       })
                     }
                     className="w-full pl-3.5 pr-20 py-2.5 rounded-xl border border-slate-300 focus:border-emerald-600 text-sm font-semibold text-slate-900 outline-hidden"
@@ -648,7 +650,7 @@ export const ClimateAssessmentPage: React.FC<ClimateAssessmentPageProps> = ({
                   Fleet Primary Fuel Type
                 </label>
                 <select
-                  value={data.mobility.vehicleFuelType}
+                  value={data.mobility.vehicleFuelType ?? ''}
                   onChange={(e) =>
                     setData({
                       ...data,
@@ -657,6 +659,7 @@ export const ClimateAssessmentPage: React.FC<ClimateAssessmentPageProps> = ({
                   }
                   className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:border-emerald-600 text-sm font-semibold text-slate-900 outline-hidden bg-white"
                 >
+                  <option value="">Select fleet fuel type…</option>
                   <option value="Diesel">Diesel</option>
                   <option value="Petrol">Petrol</option>
                   <option value="CNG">CNG</option>
@@ -673,11 +676,11 @@ export const ClimateAssessmentPage: React.FC<ClimateAssessmentPageProps> = ({
                 <div className="relative">
                   <input
                     type="number"
-                    value={data.mobility.monthlyFleetFuelLitres}
+                    value={data.mobility.monthlyFleetFuelLitres ?? ''}
                     onChange={(e) =>
                       setData({
                         ...data,
-                        mobility: { ...data.mobility, monthlyFleetFuelLitres: Number(e.target.value) },
+                        mobility: { ...data.mobility, monthlyFleetFuelLitres: e.target.value === '' ? null : Number(e.target.value) },
                       })
                     }
                     className="w-full pl-3.5 pr-20 py-2.5 rounded-xl border border-slate-300 focus:border-emerald-600 text-sm font-semibold text-slate-900 outline-hidden"
@@ -696,11 +699,11 @@ export const ClimateAssessmentPage: React.FC<ClimateAssessmentPageProps> = ({
                 <div className="relative">
                   <input
                     type="number"
-                    value={data.mobility.evAdoptedPercent}
+                    value={data.mobility.evAdoptedPercent ?? ''}
                     onChange={(e) =>
                       setData({
                         ...data,
-                        mobility: { ...data.mobility, evAdoptedPercent: Number(e.target.value) },
+                        mobility: { ...data.mobility, evAdoptedPercent: e.target.value === '' ? null : Number(e.target.value) },
                       })
                     }
                     className="w-full pl-3.5 pr-14 py-2.5 rounded-xl border border-slate-300 focus:border-emerald-600 text-sm font-semibold text-slate-900 outline-hidden"

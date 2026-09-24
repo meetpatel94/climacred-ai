@@ -145,77 +145,18 @@ def get_impact_records(user_id: str = DEFAULT_USER_ID, limit: int = 20) -> List[
 
 def get_latest_impact_as_verification_metrics(user_id: str = DEFAULT_USER_ID) -> List[Dict[str, Any]]:
     """
-    Returns list in frontend ImpactVerificationMetric format for backward compat:
-    For demo, if no impact records, return static demo metrics derived from default before/after example
+    Returns the latest stored impact record shaped like the frontend
+    ImpactVerificationMetric list.
+
+    When no impact verification has been submitted, an EMPTY list is returned.
+    (Previously a hardcoded before/after demo metric set was returned here, which
+    made fabricated verification numbers appear in the UI.)
     """
     records = get_impact_records(user_id, limit=1)
     if not records:
-        # Return demo default metrics (as in mockData)
-        return [
-            {
-                "id": "imp-energy",
-                "name": "Grid Electricity Consumption",
-                "category": "Energy",
-                "unit": "kWh / month",
-                "unitLabel": "kWh",
-                "beforeValue": 38500,
-                "afterValue": 27720,
-                "differenceValue": -10780,
-                "differencePercent": -28.0,
-                "impactVerdict": "28% load reduced via solar offset & VFD pump speed throttling.",
-            },
-            {
-                "id": "imp-water",
-                "name": "Freshwater Borewell Extraction",
-                "category": "Water",
-                "unit": "Litres / month",
-                "unitLabel": "Litres",
-                "beforeValue": 480000,
-                "afterValue": 196800,
-                "differenceValue": -283200,
-                "differencePercent": -59.0,
-                "impactVerdict": "59% groundwater conserved with closed-loop ultrafiltration & leak repair.",
-            },
-            {
-                "id": "imp-waste",
-                "name": "Landfill-Destined Material Scrap",
-                "category": "Waste",
-                "unit": "kg / month",
-                "unitLabel": "kg",
-                "beforeValue": 3600,
-                "afterValue": 1440,
-                "differenceValue": -2160,
-                "differencePercent": -60.0,
-                "impactVerdict": "2.16 tonnes/mo yarn scrap diverted to circular recycled yarn spinning.",
-            },
-            {
-                "id": "imp-emissions",
-                "name": "Total Scope 1 & 2 Emissions",
-                "category": "Emissions",
-                "unit": "MT CO₂e / month",
-                "unitLabel": "MT CO₂e",
-                "beforeValue": 41.2,
-                "afterValue": 23.9,
-                "differenceValue": -17.3,
-                "differencePercent": -42.0,
-                "impactVerdict": "17.3 MT CO₂e monthly reduction from clean solar + boiler economizer.",
-            },
-            {
-                "id": "imp-cost",
-                "name": "Net Monthly Operational Utility Cost",
-                "category": "Financial",
-                "unit": "₹ / month",
-                "unitLabel": "₹",
-                "beforeValue": 512000,
-                "afterValue": 338000,
-                "differenceValue": -174000,
-                "differencePercent": -34.0,
-                "impactVerdict": "₹1.74 Lakh monthly utility cost saving (₹20.8 Lakh annualized).",
-            },
-        ]
-    # If we have records, convert latest record to metrics
+        return []
     latest = records[0]
-    metrics = []
+    metrics: List[Dict[str, Any]] = []
     before = latest.get("before", {})
     after = latest.get("after", {})
     calc_metrics = latest.get("calculated_metrics", [])

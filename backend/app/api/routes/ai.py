@@ -1,13 +1,20 @@
 """
-Gemini AI intelligence routes (Phase 3).
+Gemini AI intelligence routes (Phase 3 + live chat assistant).
 
-One endpoint exposes the AI dashboard insight. All data collection and the Gemini
-call happen server-side, so the API key never reaches the browser.
+Endpoints:
+  GET  /api/ai/dashboard-insights  - automatic dashboard insight from stored data
+  GET  /api/ai/status              - is Gemini configured? which model?
+  POST /api/ai/chat                - floating assistant Q&A over the user's stored data
+
+All data collection and every Gemini call happen server-side, so the API key is
+never exposed to the browser. Raw provider errors are logged, never returned.
 """
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Body, HTTPException, Query
+from typing import Any, Dict, List, Optional
 import logging
 
-from app.services.ai_insight_service import get_dashboard_insights, gemini_configured
+from app.services.ai_insight_service import get_dashboard_insights, gemini_configured, gemini_model_name
+from app.services.ai_chat_service import answer_question, _chat_suggestions
 from app.config import settings
 
 logger = logging.getLogger(__name__)
@@ -24,6 +31,7 @@ async def dashboard_insights(
     - Automatically uses the most recent profile, assessment, fingerprint, analytics,
       recommendations, scenario, transformation plan and available historical snapshots.
     - Cached per data-state signature: Gemini is only called again when stored data changes.
+    - With no stored data, returns status="no_data" and insight=null (clean empty state).
     - Never fails the dashboard: if Gemini is unavailable, a calculated insight is returned
       with status="unavailable"/"error" and source="calculated".
     """
@@ -31,7 +39,7 @@ async def dashboard_insights(
         return await get_dashboard_insights(force=refresh)
     except Exception as exc:  # pragma: no cover - defensive
         logger.error(f"Dashboard AI insight failed: {exc}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"AI insight unavailable: {exc}")
+        raise HTTPException(status_code=500, detail="AI insights are temporarily unavailable.")
 
 
 @router.get("/dashboard-insights/", summary="AI dashboard insights (trailing slash alias)", include_in_schema=False)
@@ -41,11 +49,50 @@ async def dashboard_insights_slash(
     return await dashboard_insights(refresh=refresh)
 
 
+@router.post("/chat", summary="Gemini chat assistant (uses the user's stored data automatically)")
+async def ai_chat(payload: Dict[str, Any] = Body(...)):
+    """
+    Answer a business/climate question about the user's own ClimaCred data.
+
+    Request body:
+      {
+        "message": "Why is my water impact high?",
+        "history": [{"role": "user"|"assistant", "content": "..."}]   # optional, current session
+      }
+
+    The backend collects the relevant stored context (profile, latest assessment,
+    fingerprint, analytics, recommendations, scenarios, plan, impact) itself - the
+    user never has to paste or repeat data. Follow-up questions work because the
+    current session's turns are forwarded to Gemini along with that context.
+    """
+    message = (payload or {}).get("message") or (payload or {}).get("question") or ""
+    history: Optional[List[Dict[str, Any]]] = (payload or {}).get("history")
+    if history is not None and not isinstance(history, list):
+        history = []
+    try:
+        return await answer_question(str(message), history=history)
+    except Exception as exc:  # pragma: no cover - defensive
+        logger.error(f"AI chat failed: {exc}", exc_info=True)
+        raise HTTPException(status_code=500, detail="AI assistant is temporarily unavailable.")
+
+
+@router.get("/chat/suggestions", summary="Suggested starter questions for the chat assistant")
+async def chat_suggestions():
+    """Starter questions that are answered from the user's real stored data."""
+    from app.services.profile_service import has_profile
+    from app.services.assessment_service import get_assessment, has_assessment_data
+
+    has_data = has_profile() and has_assessment_data(get_assessment())
+    return {"has_data": has_data, "suggestions": _chat_suggestions(has_data)}
+
+
 @router.get("/status", summary="AI layer status (is Gemini configured?)")
 async def ai_status():
     return {
         "gemini_configured": gemini_configured(),
-        "model": settings.GEMINI_MODEL,
+        "model": gemini_model_name(),
+        "model_fallbacks": [m.strip() for m in (settings.GEMINI_MODEL_FALLBACKS or "").split(",") if m.strip()],
         "cache_minutes": settings.AI_INSIGHT_CACHE_MINUTES,
+        "chat_enabled": True,
         "note": "The Gemini API key is stored only in the backend environment, never in the browser.",
     }

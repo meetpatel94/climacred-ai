@@ -5,12 +5,16 @@ import logging
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["Reports"])
 
-@router.get("/climate", summary="Get latest climate report")
+@router.get("/climate", summary="Get latest climate report (null until real data exists)")
 async def get_climate_report():
     try:
         report = get_latest_report()
         if not report:
-            report = generate_climate_report()
+            try:
+                report = generate_climate_report()
+            except ValueError:
+                # No stored business data yet -> the UI shows an empty state.
+                return None
         return report
     except Exception as e:
         logger.error(f"Get report error: {e}")
@@ -25,6 +29,8 @@ async def generate_report():
     try:
         report = generate_climate_report()
         return report
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
     except Exception as e:
         logger.error(f"Generate report error: {e}")
         raise HTTPException(status_code=500, detail=str(e))

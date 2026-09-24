@@ -4,7 +4,7 @@ import uuid
 from app.database.mongodb import get_collection
 from app.database.collections import COLLECTIONS
 from app.services.profile_service import get_profile
-from app.services.assessment_service import get_assessment
+from app.services.assessment_service import get_assessment, has_assessment_data
 from app.services.fingerprint_service import get_latest_fingerprint, generate_and_save_fingerprint
 from app.services.transformation_service import get_transformation_plan
 from app.services.impact_service import get_impact_records, get_latest_impact_as_verification_metrics
@@ -18,6 +18,11 @@ DEFAULT_USER_ID = "default"
 def generate_climate_report(user_id: str = DEFAULT_USER_ID, include_scenario: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     profile = get_profile(user_id)
     assessment = get_assessment(user_id)
+    if not profile or not has_assessment_data(assessment):
+        # A report can only describe data that actually exists.
+        raise ValueError(
+            "No business climate data stored yet. Add your business data and complete the Climate Assessment before generating a report."
+        )
     fingerprint = get_latest_fingerprint(user_id)
     if not fingerprint:
         fingerprint = generate_and_save_fingerprint(user_id)

@@ -27,6 +27,9 @@ interface SidebarProps {
   onNavigate: (page: PageId) => void;
   mobileOpen: boolean;
   onCloseMobile: () => void;
+  /** Real stored business name (null when the user has not saved a profile). */
+  businessName?: string | null;
+  businessSize?: string | null;
 }
 
 interface NavItem {
@@ -61,7 +64,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onNavigate,
   mobileOpen,
   onCloseMobile,
+  businessName = null,
+  businessSize = null,
 }) => {
+  const initials = businessName
+    ? businessName
+        .split(/\s+/)
+        .filter(Boolean)
+        .slice(0, 2)
+        .map((word) => word[0]?.toUpperCase())
+        .join('')
+    : '—';
   return (
     <>
       {/* Mobile backdrop */}
@@ -177,13 +190,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <div className="p-2.5 rounded-xl bg-white border border-slate-200/80 shadow-2xs flex items-center justify-between">
             <div className="flex items-center gap-2.5 min-w-0">
               <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold text-xs shrink-0">
-                AT
+                {initials}
               </div>
               <div className="min-w-0 flex-1">
-                <p className="text-xs font-bold text-slate-800 truncate">ABC Textile Mfg.</p>
+                <p className="text-xs font-bold text-slate-800 truncate">
+                  {businessName || 'No business profile'}
+                </p>
                 <div className="flex items-center gap-1">
                   <ShieldCheck className="w-3 h-3 text-emerald-600" />
-                  <span className="text-[10px] text-slate-600 truncate">Medium SME Demo</span>
+                  <span className="text-[10px] text-slate-600 truncate">
+                    {businessSize || 'Add your data to begin'}
+                  </span>
                 </div>
               </div>
             </div>

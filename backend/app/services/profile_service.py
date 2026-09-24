@@ -69,59 +69,28 @@ def _normalize_profile(data: Dict[str, Any], fill_defaults: bool = True) -> Dict
     # defaults
     if "business_name" not in normalized and "name" not in normalized:
         pass
-    # Ensure required fields have defaults if missing for front compat
-    if not fill_defaults:
-        return normalized
-    defaults = {
-        "business_name": "ABC Textile Manufacturing Ltd.",
-        "name": "ABC Textile Manufacturing Ltd.",
-        "industry": "Textile",
-        "business_type": "Fabric Dyeing & Garment Finishing",
-        "businessType": "Fabric Dyeing & Garment Finishing",
-        "location": "Tirupur Industrial Cluster, Tamil Nadu, India",
-        "employees": 145,
-        "working_days": 26,
-        "workingDaysPerMonth": 26,
-        "production_volume": "42,000 meters / month",
-        "productionVolume": "42,000 meters / month",
-        "operating_hours": 16,
-        "operatingHoursPerDay": 16,
-        "business_size": "Medium",
-        "businessSize": "Medium",
-        "facility_area_sqft": 38000,
-        "facilityAreaSqFt": 38000,
-        "contact_email": "operations@abctextiles.in",
-        "contactEmail": "operations@abctextiles.in",
-        "phone": "+91 98450 12890"
-    }
-    for key, val in defaults.items():
-        if key not in normalized or normalized[key] is None or normalized[key] == "":
-            normalized[key] = val
-        # also ensure alias
-        # mapping handle already
-
+    # No fabricated business defaults: a profile is only ever what the user
+    # entered or imported. Missing fields simply stay absent.
     return normalized
 
-def get_profile(user_id: str = DEFAULT_USER_ID) -> Dict[str, Any]:
+def get_profile(user_id: str = DEFAULT_USER_ID) -> Optional[Dict[str, Any]]:
+    """Return the stored profile, or None when the user has not created one yet.
+
+    This used to insert (and return) a hardcoded "ABC Textile" demo profile on
+    first read. That fabricated business data has been removed: an empty database
+    must stay empty until the user submits real data.
+    """
     col = get_collection(COLLECTIONS["business_profiles"])
     doc = col.find_one({"user_id": user_id})
     if not doc:
-        # return default seeded profile normalized
-        default = _normalize_profile({})
-        default["user_id"] = user_id
-        default["created_at"] = datetime.now(timezone.utc)
-        default["updated_at"] = datetime.now(timezone.utc)
-        # insert
-        try:
-            col.insert_one(default)
-        except:
-            pass
-        # remove mongo _id for return
-        default.pop("_id", None)
-        return _serialize_profile(default)
+        return None
     return _serialize_profile(doc)
 
-def _serialize_profile(doc: Dict[str, Any]) -> Dict[str, Any]:
+def has_profile(user_id: str = DEFAULT_USER_ID) -> bool:
+    col = get_collection(COLLECTIONS["business_profiles"])
+    return col.find_one({"user_id": user_id}, {"_id": 1}) is not None
+
+def _serialize_profile(doc: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
     if not doc:
         return doc
     doc = dict(doc)
@@ -183,13 +152,15 @@ def create_or_update_profile(data: Dict[str, Any], user_id: str = DEFAULT_USER_I
         merged = incoming
     # Re-sync aliases on the merged document (incoming canonical value wins on conflict)
     normalized = _normalize_profile(merged)
-    # Extract canonical for validation
+    # Extract canonical for validation (only fields the user actually provided)
     validate_business_profile({
         "employees": normalized.get("employees"),
         "working_days": normalized.get("working_days"),
         "operating_hours": normalized.get("operating_hours"),
         "facility_area_sqft": normalized.get("facility_area_sqft")
     })
+    # NOTE: no default business identity is injected here. Fields the user did not
+    # provide remain absent so the UI can show a proper empty state.
 
     normalized["user_id"] = user_id
     normalized["updated_at"] = datetime.now(timezone.utc)
@@ -204,12 +175,12 @@ def create_or_update_profile(data: Dict[str, Any], user_id: str = DEFAULT_USER_I
     logger.info(f"Profile upsert for user {user_id}")
     return _serialize_profile(doc)
 
-def reset_profile(user_id: str = DEFAULT_USER_ID) -> Dict[str, Any]:
+def reset_profile(user_id: str = DEFAULT_USER_ID) -> Optional[Dict[str, Any]]:
+    """Delete the stored business profile. Returns None (no fabricated default)."""
     col = get_collection(COLLECTIONS["business_profiles"])
     col.delete_many({"user_id": user_id})
-    # also delete related data? Spec says reset profile only
-    # Create fresh default
-    return get_profile(user_id)
+    logger.info(f"Stored business profile cleared for user {user_id}")
+    return None
 
 def patch_profile(updates: Dict[str, Any], user_id: str = DEFAULT_USER_ID) -> Dict[str, Any]:
     # Filter allowed fields

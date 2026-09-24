@@ -9,7 +9,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import { UserPreferences } from '../types';
-import { DemoTag } from '../components/common/StatusBadge';
+import { resetBusinessProfile } from '../services/api';
 
 interface SettingsPageProps {
   preferences: UserPreferences;
@@ -42,10 +42,9 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
             <h2 className="text-xl font-extrabold text-slate-900 tracking-tight">
               Platform Configuration & Preferences
             </h2>
-            <DemoTag label="Settings" />
           </div>
           <p className="text-xs text-slate-600">
-            Configure currency units, metric thresholds, notification cadences, and Phase 2 API connection endpoints.
+            Configure currency units, metric thresholds, notification cadences and the backend connection.
           </p>
         </div>
 
@@ -132,7 +131,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
               <div>
                 <p className="text-xs font-bold text-slate-900">Anonymized Regional Cluster Benchmarking</p>
                 <p className="text-[11px] text-slate-600">
-                  Allow your anonymized energy and water efficiency data to be aggregated into Tirupur cluster peer percentiles.
+                  Allow your anonymized energy and water efficiency data to be aggregated into regional cluster peer percentiles.
                 </p>
               </div>
             </label>
@@ -153,11 +152,12 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
 
           <div className="p-4 rounded-xl bg-slate-900 text-white font-mono text-xs space-y-1.5 overflow-x-auto">
             <p className="text-emerald-400 font-bold">// Phase 2 Endpoint Mappings</p>
-            <p className="text-slate-300">GET  /api/v1/profile         → Connected (Mock Provider)</p>
-            <p className="text-slate-300">POST /api/v1/assessment      → Connected (Mock Provider)</p>
-            <p className="text-slate-300">GET  /api/v1/fingerprint     → Connected (Mock Provider)</p>
-            <p className="text-slate-300">POST /api/v1/scenario        → Connected (Mock Provider)</p>
-            <p className="text-slate-300">GET  /api/v1/transformation  → Connected (Mock Provider)</p>
+            <p className="text-slate-300">GET  /api/v1/profile         → Backend (stored data only)</p>
+            <p className="text-slate-300">POST /api/v1/assessment      → Backend (calculations)</p>
+            <p className="text-slate-300">GET  /api/v1/climate-fingerprint → Backend (calculations)</p>
+            <p className="text-slate-300">POST /api/v1/scenarios/simulate  → Backend (simulator)</p>
+            <p className="text-slate-300">GET  /api/v1/transformation-plan → Backend (generated plan)</p>
+            <p className="text-slate-300">POST /api/v1/ai/chat          → Backend + Gemini (key server-side)</p>
           </div>
         </div>
 
@@ -173,15 +173,20 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
 
           <button
             type="button"
-            onClick={() => {
-              if (confirm('Reset assessment to default demo values?')) {
+            onClick={async () => {
+              if (confirm('Delete your stored business profile? Your assessment data will be kept until you clear it from the assessment page.')) {
+                try {
+                  await resetBusinessProfile();
+                } catch {
+                  // Backend unreachable - nothing is deleted locally either.
+                }
                 window.location.reload();
               }
             }}
             className="text-xs font-semibold text-rose-600 hover:text-rose-700 hover:underline flex items-center gap-1"
           >
             <Trash2 className="w-3.5 h-3.5" />
-            <span>Reset Demo State</span>
+            <span>Delete Stored Business Profile</span>
           </button>
         </div>
       </form>

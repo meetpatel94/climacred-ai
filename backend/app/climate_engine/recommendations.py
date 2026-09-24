@@ -43,7 +43,7 @@ SOLUTION_CATALOG: List[Dict[str, Any]] = [
         "required_inputs": ["monthly_electricity_kwh", "facility_area_sqft", "operating_hours"],
         "applicable_industries": ["All"],
         "featured": True,
-        "assumptions": ["Assumes 75 kWp feasible on 38k sq ft roof, 4.5 peak sun hours, 78% performance ratio"]
+        "assumptions": ["Reference sizing: 75 kWp installation, 4.5 peak sun hours, 78% performance ratio (configurable; actual sizing depends on your recorded facility area)."]
     },
     {
         "id": "sol-water-ro",
@@ -51,7 +51,7 @@ SOLUTION_CATALOG: List[Dict[str, Any]] = [
         "name": "Closed-Loop Water Recycling & Ultrafiltration",
         "category": "Water",
         "problem_area": "High freshwater extraction with single-pass rinsing bath effluent.",
-        "problemAddressed": "480,000 L/mo borewell groundwater extraction with heavy rinsing bath effluent.",
+        "problemAddressed": "High freshwater extraction with single-pass rinsing bath effluent.",
         "description": "Multi-stage ultrafiltration with reverse osmosis to recycle 65% rinse water back into dye baths.",
         "shortDesc": "Multi-stage ultrafiltration with reverse osmosis to recycle 65% rinse water back into dye baths.",
         "investment_range": "₹22,00,000 – ₹29,00,000",
@@ -98,8 +98,8 @@ SOLUTION_CATALOG: List[Dict[str, Any]] = [
         "title": "Smart Ultrasonic Water Leak & Flow Telemetry",
         "name": "Smart Ultrasonic Water Leak & Flow Telemetry",
         "category": "Water",
-        "problem_area": "Unnoticed underground joint leakages and overflow tanks wasting an estimated 35,000 L/month.",
-        "problemAddressed": "Unnoticed underground joint leakages and overflow tanks wasting an estimated 35,000 L/month.",
+        "problem_area": "Unnoticed underground joint leakages and overflow tanks wasting treated water.",
+        "problemAddressed": "Unnoticed underground joint leakages and overflow tanks wasting treated water.",
         "description": "IoT ultrasonic clamp-on flow meters and smart alert valves at key distribution junctions.",
         "shortDesc": "IoT ultrasonic clamp-on flow meters and smart alert valves at key distribution junctions.",
         "investment_range": "₹2,20,000 – ₹3,50,000",
@@ -122,8 +122,8 @@ SOLUTION_CATALOG: List[Dict[str, Any]] = [
         "title": "Rooftop Rainwater Harvesting & Recharge Well",
         "name": "Rooftop Rainwater Harvesting & Recharge Well",
         "category": "Water",
-        "problem_area": "Runoff loss from 38,000 sq ft industrial shed roof during monsoon cycles.",
-        "problemAddressed": "Runoff loss from 38,000 sq ft industrial shed roof during monsoon cycles.",
+        "problem_area": "Rainwater runoff loss from the industrial shed roof during monsoon cycles.",
+        "problemAddressed": "Rainwater runoff loss from the industrial shed roof during monsoon cycles.",
         "description": "Guttering conduits, multi-media sand filters, and a 120,000 L underground holding storage tank.",
         "shortDesc": "Guttering conduits, multi-media sand filters, and a 120,000 L underground holding storage tank.",
         "investment_range": "₹4,50,000 – ₹6,00,000",
@@ -139,15 +139,15 @@ SOLUTION_CATALOG: List[Dict[str, Any]] = [
         "resourceReductionValue": "20% seasonal water offset",
         "required_inputs": ["facility_area_sqft", "location"],
         "featured": False,
-        "assumptions": ["Assumes Tirupur 800mm rainfall, 70% capture efficiency, 120kL storage"]
+        "assumptions": ["Reference sizing: regional monsoon rainfall, 70% capture efficiency, 120 kL storage (configurable)."]
     },
     {
         "id": "sol-waste-recovery",
         "title": "Textile Fabric Off-Cut Circular Recovery & Baling",
         "name": "Textile Fabric Off-Cut Circular Recovery & Baling",
         "category": "Waste",
-        "problem_area": "3.6 tonnes of yarn & clipping scrap disposed via unorganized low-recovery channels.",
-        "problemAddressed": "3.6 tonnes of yarn & clipping scrap disposed via unorganized low-recovery channels.",
+        "problem_area": "Mixed textile off-cuts commonly leave plants through low-recovery scrap channels instead of circular buyers.",
+        "problemAddressed": "Mixed textile off-cuts commonly leave plants through low-recovery scrap channels instead of circular buyers.",
         "description": "Automated hydraulic sorting baler + tie-up with certified recycled yarn & acoustic panel manufacturers.",
         "shortDesc": "Automated hydraulic sorting baler + tie-up with certified recycled yarn & acoustic panel manufacturers.",
         "investment_range": "₹3,80,000 – ₹5,20,000",
@@ -163,17 +163,17 @@ SOLUTION_CATALOG: List[Dict[str, Any]] = [
         "resourceReductionValue": "66% textile waste recovered",
         "required_inputs": ["material_waste_kg", "recycling_percentage"],
         "featured": True,
-        "assumptions": ["Assumes 3.6T scrap/mo, ₹7.5/kg scrap value, 66% recovery to recyclers"]
+        "assumptions": ["Reference sizing: ₹7.5/kg scrap value and 66% recovery to recyclers applied to your recorded material waste."]
     },
     {
         "id": "sol-ev-fleet",
         "title": "Commercial EV Cargo Van Transition (Phase 1)",
         "name": "Commercial EV Cargo Van Transition (Phase 1)",
         "category": "Mobility",
-        "problem_area": "High diesel fuel consumption and tailpipe soot from intra-city dispatch vans.",
-        "problemAddressed": "High diesel fuel consumption and tailpipe soot from intra-city dispatch vans.",
-        "description": "Replace 4 diesel cargo vans with 3.5-ton commercial electric vans and install dual 11kW Type 2 chargers.",
-        "shortDesc": "Replace 4 diesel cargo vans with 3.5-ton commercial electric vans and install dual 11kW Type 2 chargers.",
+        "problem_area": "Diesel fuel consumption and tailpipe emissions from intra-city dispatch vans.",
+        "problemAddressed": "Diesel fuel consumption and tailpipe emissions from intra-city dispatch vans.",
+        "description": "Replace diesel cargo vans with 3.5-ton commercial electric vans and install dual 11 kW Type 2 chargers.",
+        "shortDesc": "Replace diesel cargo vans with 3.5-ton commercial electric vans and install dual 11 kW Type 2 chargers.",
         "investment_range": "₹18,00,000 – ₹24,00,000",
         "investmentRange": "₹18,00,000 – ₹24,00,000",
         "investmentMinInr": 1800000,
@@ -187,7 +187,7 @@ SOLUTION_CATALOG: List[Dict[str, Any]] = [
         "resourceReductionValue": "50% fleet diesel reduction",
         "required_inputs": ["delivery_vehicles", "monthly_fuel_litres", "vehicle_fuel_type"],
         "featured": False,
-        "assumptions": ["Assumes 4 vans replaced, 280 km/day, diesel 9 km/L, EV 1.2 km/kWh"]
+        "assumptions": ["Reference sizing: 280 km/day, diesel 9 km/L, EV 1.2 km/kWh per replaced van (configurable)."]
     },
     {
         "id": "sol-route-opt",

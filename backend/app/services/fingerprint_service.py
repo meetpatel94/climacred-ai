@@ -1,9 +1,9 @@
 from datetime import datetime, timezone
-from typing import Dict, Any, Optional
+from typing import Dict, Any, List, Optional
 from app.database.mongodb import get_collection
 from app.database.collections import COLLECTIONS
 from app.services.profile_service import get_profile
-from app.services.assessment_service import get_assessment
+from app.services.assessment_service import get_assessment, has_assessment_data
 from app.climate_engine.fingerprint import generate_fingerprint
 from app.utils.validation import validate_business_profile, validate_assessment_data
 import logging
@@ -13,7 +13,8 @@ DEFAULT_USER_ID = "default"
 
 def get_latest_fingerprint(user_id: str = DEFAULT_USER_ID) -> Optional[Dict[str, Any]]:
     col = get_collection(COLLECTIONS["climate_fingerprints"])
-    doc = col.find_one({"user_id": user_id}, sort=[("created_at", -1)])
+    # Superseded snapshots stay stored as history but are no longer the current one.
+    doc = col.find_one({"user_id": user_id, "superseded": {"$ne": True}}, sort=[("created_at", -1)])
     if not doc:
         return None
     d = dict(doc)
@@ -28,9 +29,11 @@ def generate_and_save_fingerprint(user_id: str = DEFAULT_USER_ID) -> Dict[str, A
     profile = get_profile(user_id)
     assessment = get_assessment(user_id)
 
-    # Validate data existence
-    if not profile or not assessment:
-        raise ValueError("Missing business profile or climate assessment. Complete both before generating fingerprint.")
+    # A fingerprint is only ever calculated from real, user-provided data.
+    if not profile:
+        raise ValueError("No business profile stored yet. Add your business data before generating a Climate Fingerprint.")
+    if not assessment or not has_assessment_data(assessment):
+        raise ValueError("No climate assessment data stored yet. Complete your Climate Assessment before generating a Climate Fingerprint.")
 
     # Validate data quality via utils? But allow generation even if low quality; we include warning
     # 1. Retrieve business profile - done
@@ -65,8 +68,47 @@ def generate_and_save_fingerprint(user_id: str = DEFAULT_USER_ID) -> Dict[str, A
     logger.info(f"Fingerprint generated for user {user_id} overall {fingerprint.get('overallScore')}")
     return doc
 
-def get_or_generate_fingerprint(user_id: str = DEFAULT_USER_ID) -> Dict[str, Any]:
+def get_or_generate_fingerprint(user_id: str = DEFAULT_USER_ID) -> Optional[Dict[str, Any]]:
+    """Latest stored fingerprint, regenerated from stored data when possible.
+
+    Returns None (instead of raising) when the user has not entered real data yet,
+    so callers such as the dashboard/AI layer can show a clean empty state.
+    """
     latest = get_latest_fingerprint(user_id)
     if latest:
         return latest
-    return generate_and_save_fingerprint(user_id)
+    try:
+        return generate_and_save_fingerprint(user_id)
+    except ValueError:
+        return None
+
+
+def get_fingerprint_history(user_id: str = DEFAULT_USER_ID, limit: int = 24) -> List[Dict[str, Any]]:
+    """Stored fingerprint snapshots (oldest → newest) used for real historical charts.
+
+    Each snapshot keeps the calculated dimension metrics that were used at the time,
+    so trends are derived from records the user actually submitted.
+    """
+    col = get_collection(COLLECTIONS["climate_fingerprints"])
+    cursor = col.find({"user_id": user_id}).sort("created_at", -1).limit(limit)
+    snapshots: List[Dict[str, Any]] = []
+    for doc in cursor:
+        created = doc.get("created_at") or doc.get("generated_at")
+        dimensions = doc.get("dimensions") or []
+        metrics: Dict[str, Any] = {}
+        scores: Dict[str, Any] = {}
+        for dim in dimensions:
+            name = dim.get("dimension")
+            if name:
+                scores[name] = dim.get("score")
+                metrics[name] = dim.get("metrics_used") or {}
+        snapshots.append({
+            "created_at": created.isoformat() if hasattr(created, "isoformat") else created,
+            "overall_score": doc.get("overallScore"),
+            "score_label": doc.get("scoreLabel"),
+            "dimension_scores": scores,
+            "dimension_metrics": metrics,
+            "data_quality": doc.get("data_quality"),
+        })
+    snapshots.reverse()
+    return snapshots

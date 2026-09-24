@@ -19,9 +19,17 @@ import { PageId } from '../types';
 
 interface LandingPageProps {
   onNavigate: (page: PageId) => void;
+  /** true once the user has stored a business profile */
+  hasProfile?: boolean;
+  /** true once the user has stored climate assessment data */
+  hasAssessment?: boolean;
 }
 
-export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate }) => {
+export const LandingPage: React.FC<LandingPageProps> = ({
+  onNavigate,
+  hasProfile = false,
+  hasAssessment = false,
+}) => {
   return (
     <div className="space-y-16 pb-12">
       {/* Hero Section */}
@@ -56,7 +64,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate }) => {
                 onClick={() => onNavigate('assessment')}
                 className="px-6 py-3.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-bold text-sm shadow-lg shadow-emerald-500/25 flex items-center gap-2 group transition-all hover:scale-[1.02]"
               >
-                <span>Start Climate Assessment</span>
+                <span>{hasAssessment ? 'Review Climate Assessment' : 'Start Climate Assessment'}</span>
                 <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
               </button>
 
@@ -64,7 +72,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate }) => {
                 onClick={() => onNavigate('dashboard')}
                 className="px-6 py-3.5 rounded-xl bg-white/10 hover:bg-white/15 border border-white/20 text-white font-semibold text-sm backdrop-blur-md transition-all hover:scale-[1.02]"
               >
-                Explore Demo Dashboard
+                {hasProfile || hasAssessment ? 'Open Dashboard' : 'View Dashboard'}
               </button>
             </div>
 
@@ -97,7 +105,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate }) => {
                 <div className="absolute w-32 h-32 rounded-2xl bg-gradient-to-br from-emerald-600 to-teal-800 p-3.5 text-center flex flex-col items-center justify-center shadow-lg shadow-emerald-500/30 border border-emerald-400/40">
                   <Activity className="w-6 h-6 text-emerald-200 mb-1" />
                   <span className="text-xs font-extrabold text-white">Climate Engine</span>
-                  <span className="text-[10px] text-emerald-200 font-mono">Fingerprint 58</span>
+                  <span className="text-[10px] text-emerald-200 font-mono">Six Dimensions</span>
                 </div>
 
                 {/* 5 Input Streams as Orbiting Badges */}
@@ -127,19 +135,19 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate }) => {
                 </div>
               </div>
 
-              {/* Bottom live stats */}
+              {/* Bottom capability strip (no sample figures - your own data drives every number) */}
               <div className="grid grid-cols-3 gap-2 pt-3 border-t border-slate-700/60 text-center">
                 <div className="bg-slate-900/60 p-2 rounded-xl border border-slate-700/40">
                   <p className="text-[10px] text-slate-400">Baseline</p>
-                  <p className="text-xs font-bold text-white">41.2 MT CO₂</p>
+                  <p className="text-xs font-bold text-white">Your Data</p>
                 </div>
                 <div className="bg-slate-900/60 p-2 rounded-xl border border-slate-700/40">
-                  <p className="text-[10px] text-slate-400">Target ROI</p>
-                  <p className="text-xs font-bold text-emerald-400">2.6 Years</p>
+                  <p className="text-[10px] text-slate-400">Payback</p>
+                  <p className="text-xs font-bold text-emerald-400">Modelled</p>
                 </div>
                 <div className="bg-slate-900/60 p-2 rounded-xl border border-slate-700/40">
-                  <p className="text-[10px] text-slate-400">Potential</p>
-                  <p className="text-xs font-bold text-teal-300">38% Save</p>
+                  <p className="text-[10px] text-slate-400">Forecast</p>
+                  <p className="text-xs font-bold text-teal-300">Calculated</p>
                 </div>
               </div>
             </div>

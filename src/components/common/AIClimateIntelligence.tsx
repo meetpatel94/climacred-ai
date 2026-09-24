@@ -48,18 +48,16 @@ const shortTime = (iso: string): string => {
 };
 
 // Small helper: name the origin of every block so nothing is mistaken for a guarantee.
-const SourceTag: React.FC<{ kind: 'ai' | 'calculated' | 'estimated' | 'demo' }> = ({ kind }) => {
+const SourceTag: React.FC<{ kind: 'ai' | 'calculated' | 'estimated' }> = ({ kind }) => {
   const styles: Record<string, string> = {
     ai: 'bg-emerald-50 text-emerald-800 border-emerald-200/90',
     calculated: 'bg-slate-100 text-slate-700 border-slate-200',
     estimated: 'bg-amber-50 text-amber-800 border-amber-200',
-    demo: 'bg-slate-100 text-slate-600 border-slate-200',
   };
   const labels: Record<string, string> = {
     ai: 'AI interpretation',
     calculated: 'Calculated',
     estimated: 'Estimated',
-    demo: 'Demo data',
   };
   return (
     <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold border ${styles[kind]}`}>
@@ -204,7 +202,7 @@ export const AIClimateIntelligence: React.FC<AIClimateIntelligenceProps> = ({ on
           <h3 className="text-sm font-extrabold text-slate-900">AI Climate Intelligence</h3>
           <p className="text-xs text-slate-700 mt-0.5">
             {failed
-              ? 'AI insights unavailable — showing calculated insights. Your Phase 2 dashboard data below is unaffected.'
+              ? 'AI insights are temporarily unavailable. Calculated values on this dashboard are unaffected.'
               : 'Preparing climate intelligence from your latest stored data…'}
           </p>
         </div>
@@ -212,7 +210,34 @@ export const AIClimateIntelligence: React.FC<AIClimateIntelligenceProps> = ({ on
     );
   }
 
-  const { insight, calculated, history, source, notice, reason, model, generated_at } = data;
+  const { insight, calculated, history, source, notice, model, generated_at } = data;
+
+  // Empty database: no insight is produced and no explanation is invented.
+  if (!insight || data.status === 'no_data' || data.has_data === false) {
+    return (
+      <section className="ai-surface bg-white border border-slate-200/90 rounded-2xl p-5 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="flex items-start gap-3">
+          <span className="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-600 via-teal-600 to-emerald-700 text-white flex items-center justify-center shrink-0">
+            <Sparkles className="w-4 h-4" />
+          </span>
+          <div>
+            <h3 className="text-sm font-extrabold text-slate-900 tracking-tight">AI Climate Intelligence</h3>
+            <p className="text-xs text-slate-700 mt-0.5">
+              I don&apos;t have your business climate data yet. Complete your Climate Assessment and I&apos;ll analyze it
+              for you.
+            </p>
+          </div>
+        </div>
+        <button
+          onClick={() => onNavigate('assessment')}
+          className="shrink-0 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-colors"
+        >
+          Complete Climate Assessment
+        </button>
+      </section>
+    );
+  }
+
   const details = insight.details;
   const auditWarning = details.number_audit && details.number_audit.verified === false;
 
@@ -258,7 +283,6 @@ export const AIClimateIntelligence: React.FC<AIClimateIntelligenceProps> = ({ on
           <ShieldAlert className="w-3.5 h-3.5 text-amber-700 mt-0.5 shrink-0" />
           <p className="text-[11px] text-amber-900">
             {notice}
-            {reason ? <span className="text-amber-800/80"> ({reason})</span> : null}
           </p>
         </div>
       )}
@@ -401,6 +425,12 @@ export const AIClimateIntelligence: React.FC<AIClimateIntelligenceProps> = ({ on
                 <p>{details.reasoning_summary}</p>
               </DetailSection>
 
+              {details.why_it_matters && (
+                <DetailSection icon={Target} title="Why it matters" tag={<SourceTag kind={source === 'gemini' ? 'ai' : 'calculated'} />}>
+                  <p>{details.why_it_matters}</p>
+                </DetailSection>
+              )}
+
               <DetailSection icon={AlertTriangle} title="Main risks" tag={<SourceTag kind="calculated" />}>
                 <BulletList items={details.main_risks} empty="No specific risk flagged." />
               </DetailSection>
@@ -459,7 +489,6 @@ export const AIClimateIntelligence: React.FC<AIClimateIntelligenceProps> = ({ on
                   <SourceTag kind="calculated" /> <span className="text-[10px] text-slate-600">Phase 2 engine values — the source of truth</span>
                   <SourceTag kind="ai" /> <span className="text-[10px] text-slate-600">Gemini interpretation</span>
                   <SourceTag kind="estimated" /> <span className="text-[10px] text-slate-600">catalog-based projection</span>
-                  <SourceTag kind="demo" /> <span className="text-[10px] text-slate-600">illustrative sample data</span>
                 </div>
                 <p className="text-[10px] text-slate-600">{data.disclaimer}</p>
               </div>

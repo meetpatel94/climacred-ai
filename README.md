@@ -41,20 +41,23 @@ Frontend and backend are cleanly separated. All climate calculations live in bac
 │   │   ├── api/routes/{profile,assessment,fingerprint,solutions,scenarios,transformation,impact,reports}.py
 │   │   ├── schemas/{profile,assessment,scenario,report}.py
 │   │   ├── services/{profile_service,assessment_service,fingerprint_service,solution_service,scenario_service,transformation_service,impact_service,report_service}.py
+│   │   ├── services/{ai_insight_service,ai_chat_service}.py   # Gemini layer (backend-only key)
 │   │   ├── climate_engine/{fingerprint,scoring,recommendations,simulations,emissions,forecasting,anomaly_detection}.py
 │   │   ├── database/{mongodb,collections}.py
 │   │   └── utils/{calculations,validation,units}.py
 │   ├── requirements.txt
 │   ├── .env.example
-│   ├── seed.py
-│   └── tests/test_api.py
+│   ├── seed.py                # developer-only sample data (needs --demo, never auto-run)
+│   └── tests/{test_api.py,test_ai.py}
 ├── src/
 │   ├── App.tsx
 │   ├── components/{layout,common}
+│   ├── components/chat/AIChatAssistant.tsx   # floating "ClimaCred AI Assistant"
 │   ├── pages/{Dashboard,BusinessProfile,ClimateAssessment,ClimateFingerprint,Energy,Water,Waste,Emissions,Mobility,GreenSolutions,ScenarioSimulator,TransformationPlan,ImpactVerification,ClimateImpactReport}.tsx
-│   ├── services/api.ts        # Centralized API client (Phase 2 live)
-│   ├── services/mockData.ts   # Fallback demo data
+│   ├── services/api.ts        # Centralized API client (live backend)
+│   ├── services/defaults.ts   # Empty-state copy + formatting helpers
 │   └── types/index.ts
+├── frontend_smoke_test.cjs    # headless UI smoke test (empty DB + seeded)
 └── vite.config.ts
 ```
 
@@ -122,12 +125,13 @@ Vite proxies `/api` to `http://localhost:8000` for dev (see `vite.config.ts`).
 
 - **Local:** `mongod --dbpath ./data/db`
 - **Atlas:** set `MONGODB_URI=mongodb+srv://...`
-- **Without MongoDB:** backend automatically falls back to `mongomock` in-memory (data not persisted across restarts, but app remains functional). `seed.py` will seed demo data into whichever DB is active.
+- **Without MongoDB:** backend automatically falls back to `mongomock` in-memory (data not persisted across restarts, but app remains functional).
+- **Nothing is inserted at startup.** A fresh database is genuinely empty; every figure in the UI comes from data you entered/imported, from MongoDB, or from backend calculations of that data.
 
 Collections created on startup with indexes:
 
 ```
-users, business_profiles, climate_assessments, climate_fingerprints,
+users, business_profiles, climate_assessments, climate_fingerprints, ai_insights,
 green_solutions, scenarios, transformation_plans, impact_records, climate_reports
 ```
 
@@ -142,7 +146,7 @@ Swagger at `http://localhost:8000/docs`
 | Method | Path | Description |
 |--------|------|-------------|
 | GET/PATCH/POST | `/api/profile` | Business profile CRUD |
-| POST | `/api/profile/reset` | Reset to demo |
+| POST | `/api/profile/reset` | Clear the stored profile (returns `null`) |
 | GET/POST/PATCH | `/api/assessment` | Climate assessment CRUD |
 | GET | `/api/climate-fingerprint` | Latest fingerprint |
 | POST | `/api/climate-fingerprint/generate` | Generate from profile+assessment |
@@ -165,6 +169,8 @@ Swagger at `http://localhost:8000/docs`
 | GET | `/api/impact/metrics` | Frontend-shaped metrics |
 | GET/POST | `/api/reports/climate` | Get / generate report |
 | GET | `/api/ai/dashboard-insights` | Gemini AI climate insight for the dashboard (auto-loaded, cached, `?refresh=true` to regenerate) |
+| POST | `/api/ai/chat` | Floating AI chat assistant (`{message, history[]}`; context is built server-side) |
+| GET | `/api/ai/chat/suggestions` | Starter questions for the chat assistant (`has_data` aware) |
 | GET | `/api/ai/status` | AI layer status (`gemini_configured`, model, cache TTL) |
 
 All also available under `/api/v1/...` for compatibility.
@@ -211,6 +217,30 @@ Dashboard mount
 - **Dark mode:** navbar toggle (end of the header) with `localStorage` persistence (`climacred_theme`) and a
   class-based Tailwind v4 dark variant; the existing light palette is remapped in `src/index.css`.
 
+### Floating AI chat assistant
+
+- **UI:** `src/components/chat/AIChatAssistant.tsx` — compact FAB in the bottom-right corner, available on every
+  page, titled *"ClimaCred AI Assistant"* with the subtitle *"Ask me about your climate data"*.
+- **Endpoint:** `POST /api/ai/chat` with `{message, history[]}`; the backend rebuilds the structured context on
+  every request (profile, latest assessment, fingerprint + history, analytics, recommendations, scenarios,
+  transformation plan, impact, reports) — never a raw database dump — so follow-up questions in the same
+  conversation keep their context.
+- **Answer style:** short, business-friendly and action-oriented (Answer / Why / What to do next / Relevant number).
+- **Numbers come from the calculation engine**, not from Gemini: the reply is numerically audited against the
+  backend context and falls back to the deterministic calculated answer when the model is unavailable.
+- **No data yet:** *"I don't have your business climate data yet."* + *"Complete your Climate Assessment and I'll
+  analyze it for you."* General (non-business) questions are still answered, clearly separated from data analysis.
+- **Errors:** missing/invalid key, quota, timeout or HTTP errors are logged server-side (model + reason) and the
+  user only sees *"AI insights are temporarily unavailable."* — never a raw 404 and never an invented answer.
+
+### Data authenticity
+
+- No hardcoded business data ships with the app: `ABC Textile`, the demo assessment numbers and the
+  frontend `mockData.ts` fallback are gone (deleted, not hidden).
+- Every displayed value is user-entered/imported data, MongoDB data, or a backend calculation of it;
+  Gemini only ever *interprets* those values.
+- An empty database renders clean empty states — missing values are never replaced with zeros.
+
 ---
 
 ## Database Collections
@@ -220,15 +250,17 @@ Documents are structured, with timestamps and indexes. Example `business_profile
 ```json
 {
   "user_id": "default",
-  "business_name": "ABC Textile ...",
-  "industry": "Textile",
-  "employees": 145,
+  "business_name": "<name you entered>",
+  "industry": "<industry you selected>",
+  "employees": 0,
   "created_at": "2026-09-23T...",
   "updated_at": "2026-09-23T..."
 }
 ```
 
-See `backend/seed.py` for full demo shapes.
+The shape above is the schema only — the values are whatever the user actually submitted.
+`backend/seed.py` (developer utility) contains the full field-by-field shapes and refuses to run
+without an explicit `--demo` flag.
 
 ---
 
@@ -287,9 +319,9 @@ Every estimated metric exposes `assumptions[]`; every calculated environmental m
 # Terminal 1 – Backend
 cd backend
 pip install -r requirements.txt
-cp .env.example .env
-python seed.py          # seeds ABC Textile demo (optional; backend also auto-seeds)
+cp .env.example .env     # add GEMINI_API_KEY=... (optional; AI layer degrades gracefully without it)
 uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+# The API starts with an EMPTY database - no demo business is created.
 
 # Terminal 2 – Frontend
 npm install
@@ -308,32 +340,28 @@ curl -X POST http://localhost:8000/api/scenarios/simulate -H "Content-Type: appl
 
 ---
 
-## How to Seed Demo Data
+## Developer-Only Sample Data (optional)
+
+The normal app never creates sample data. If you want a throwaway business to click through the UI:
 
 ```bash
 cd backend
-python seed.py
+python seed.py --demo      # refuses to run without an explicit flag
 ```
 
-Creates:
-
-- Business Profile: ABC Textile Manufacturing Ltd. (Tirupur, 145 emp, 38k sq ft)
-- Climate Assessment (energy 38500 kWh, water 480000 L, waste 7200 kg, etc.)
-- Fingerprint (overall ~47–58 depending on scoring tune, Very High Water etc.)
-- Solutions catalog (12 interventions)
-- Transformation plan (9 phased actions)
-- Impact record demo (before/after)
-- Report
-
-> Clearly DEMO data, not real measured data. Dashboard works immediately after setup.
+It writes a clearly-labelled illustrative business (profile, assessment, fingerprint, plan, report).
+The backend never calls this module, so a normal `uvicorn app.main:app` start leaves the database empty.
+Never point it at a production database.
 
 ---
 
-## How to Replace Demo Data
+## How to Enter Your Own Data (normal flow)
+
+The app works only with what you enter, import, or what the backend calculates from it.
 
 1. Update **Business Profile** page → PATCH `/api/profile` (employees, facilityArea, etc.)
 2. Complete **Climate Assessment** wizard (6 steps) → POST `/api/assessment` (validates non-negative, % 0–100, EV ≤ vehicles, etc.)
-3. Click **Analyze My Business** → POST `/api/climate-fingerprint/generate` (recalculates; old fingerprint invalidated)
+3. Click **Analyze My Business** → POST `/api/climate-fingerprint/generate` (recalculates the current fingerprint; earlier snapshots are kept as history and used for the trend/change comparison)
 4. View **Climate Fingerprint** – new scores, top gaps, AI insights personalized: e.g., “Water is highest opportunity because monthly consumption high relative to activity and no recycling recorded.”
 5. **Green Solutions** now shows personalized recommendations (not generic solar). Recommendation Score = Impact (30%) + Financial (25%) + Environmental (20%) + Feasibility (15%) + Business Relevance (10%) – weights configurable, transparent breakdown per solution.
 6. **Scenario Simulator**: select e.g., `Solar + VFD` or `Water RO + Leak Sensors`, set scale 50–100%, POST `/api/scenarios/simulate` – combined outcomes capped to avoid double counting, assumptions listed.
@@ -345,12 +373,12 @@ Creates:
 
 ## Frontend–Backend Integration
 
-- **Centralized client:** `src/services/api.ts` handles base URL (`VITE_API_URL` or `http://localhost:8000`), timeouts, JSON, validation errors, CORS, and fallbacks.
-- **Replaces mock:** `getBusinessProfile`, `saveBusinessProfile`, `getClimateAssessment`, `saveClimateAssessment`, `getClimateFingerprint`, `getGreenSolutions`, `runScenarioSimulation`, `getTransformationPlan`, `updateTransformationItemStatus`, `getImpactVerification`, `submitImpactVerification`, `getClimateReport`, plus analytics/anomaly/forecast helpers.
+- **Centralized client:** `src/services/api.ts` handles the base URL (`VITE_API_URL` when set, otherwise the same origin plus the Vite `/api` proxy), timeouts, JSON and validation errors. Missing data returns `null`/`[]` — it never falls back to sample business data.
+- **API functions:** `getBusinessProfile`, `saveBusinessProfile`, `getClimateAssessment`, `saveClimateAssessment`, `getClimateFingerprint`, `getGreenSolutions`, `runScenarioSimulation`, `getTransformationPlan`, `updateTransformationItemStatus`, `getImpactVerification`, `submitImpactVerification`, `getClimateReport`, plus analytics/anomaly/forecast helpers.
 - **Keeps UI:** No redesign – pages, components, animations, charts, navigation, styling preserved; now retrieve real data.
 - **Handles states:** loading spinners, success toasts, validation errors (e.g., “EV count cannot exceed total”), server errors, network timeouts (8s), empty states (“No solutions match”).
 - **Validation:** frontend + backend (required, non-negative, 0–100%, reasonable ranges, units). Example: `energyEfficientEquipmentPercent 0–100`, `EV count ≤ vehicles`.
-- **Performance:** service-layer separation, async, Mongomock fallback, fingerprints/reports cached with timestamps; recalc only on assessment change (invalidates old).
+- **Performance:** service-layer separation, async, Mongomock fallback, fingerprints/reports cached with timestamps; the current fingerprint is recalculated when the assessment changes, while earlier real snapshots are kept for trends and change comparison.
 
 ---
 
@@ -358,13 +386,15 @@ Creates:
 
 ```bash
 cd backend
-python -m pytest tests -v          # 56 tests (37 Phase 2 + 19 AI layer), Gemini mocked - no network needed
+python -m pytest tests -v          # 88 tests (50 API + 38 AI layer), Gemini mocked - no network needed
+python audit_e2e.py                # optional: 99-check live end-to-end audit (needs the backend running)
 
 cd ..
 npx tsc --noEmit                   # type check
-npm run build                      # production single-file build
+npm run build                      # production single-file build (dist/index.html)
 npm run preview                    # then, with the backend running:
-node frontend_smoke_test.cjs       # 21/21 page click-through + console-error check
+node frontend_smoke_test.cjs            # 27/27 - empty DB, all pages, no fake data
+node frontend_smoke_test.cjs --with-data # 28/28 - same plus a real business seeded through the API
 ```
 
 Covers:
@@ -382,9 +412,12 @@ Covers:
 - Anomaly/forecast insufficient data messages
 - AI layer (`tests/test_ai.py`): missing key fallback, Gemini success, prompt contains stored data only,
   numeric audit (unsupported values flagged), forecast forced when no history, quota/transport/JSON failures,
-  cache prevents repeated Gemini calls, `?refresh=true`, history included when snapshots exist
+  404 model fallback chain, cache prevents repeated Gemini calls, `?refresh=true`, history included when snapshots exist,
+  chat context/follow-ups, chat never ships invented numbers, provider errors never exposed to users
+- Data authenticity: no `ABC Textile`/mock/demo literals in code or bundles; empty DB returns empty states;
+  the API key never appears in any response
 
-56 tests, all passing.
+**88 tests, all passing.** UI smoke test: **27/27** on an empty database, **28/28** with real submitted data.
 
 ---
 
@@ -401,12 +434,13 @@ Covers:
 ## Known Notes
 
 - Mongomock fallback means data resets on backend restart without real MongoDB – for production use real MongoDB.
-- Fingerprint score for demo ~47.5 (Transition Stage) vs. original Phase 1 mock 58 – difference due to transparent weighted methodology; still indicates Water/Energy as top gaps, consistent narrative.
-- Frontend `mockData.ts` retained as fallback for offline dev but primary path is live backend.
+- Empty database ⇒ clean empty states everywhere (dashboard, analytics pages, chat). Zeros are shown only when a stored value really is zero.
+- Fingerprint history: each assessment change stores a new snapshot; the older real snapshots are retained so trends and change comparisons have data. (Transformation plans and generated reports are still regenerated on assessment change.)
+- No frontend sample/demo data module exists any more — `src/services/mockData.ts` was removed, not hidden.
 
 ---
 
 ## License
 
-Demo for TerraMind – educational.
+Built for TerraMind – educational project.
 

@@ -15,8 +15,7 @@ import {
   Loader2,
 } from 'lucide-react';
 import { GreenSolution, PageId } from '../types';
-import { GREEN_SOLUTIONS_LIBRARY } from '../services/mockData';
-import { DemoTag } from '../components/common/StatusBadge';
+import { EmptyState } from '../components/common/EmptyState';
 import { getGreenSolutions, getRecommendedSolutions } from '../services/api';
 
 interface GreenSolutionsPageProps {
@@ -42,7 +41,8 @@ export const GreenSolutionsPage: React.FC<GreenSolutionsPageProps> = ({
   const [activeCategory, setActiveCategory] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedModalSolution, setSelectedModalSolution] = useState<GreenSolution | null>(null);
-  const [solutions, setSolutions] = useState<GreenSolution[]>(GREEN_SOLUTIONS_LIBRARY);
+  // The catalog is platform content served by the backend; nothing is embedded locally.
+  const [solutions, setSolutions] = useState<GreenSolution[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [recommendedIds, setRecommendedIds] = useState<Set<string>>(new Set());
@@ -54,9 +54,7 @@ export const GreenSolutionsPage: React.FC<GreenSolutionsPageProps> = ({
       setError(null);
       try {
         const fetched = await getGreenSolutions(activeCategory);
-        if (!cancelled) {
-          setSolutions(fetched.length ? fetched : GREEN_SOLUTIONS_LIBRARY);
-        }
+        if (!cancelled) setSolutions(fetched);
         // Also fetch recommendations to highlight personalized top picks
         try {
           const recs = await getRecommendedSolutions(5);
@@ -66,8 +64,7 @@ export const GreenSolutionsPage: React.FC<GreenSolutionsPageProps> = ({
         } catch {}
       } catch (e: any) {
         if (!cancelled) {
-          setError(e.message || 'Failed to load solutions catalog');
-          // Keep mock fallback already set
+          setError('Could not load the solution catalog from the backend.');
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -98,12 +95,11 @@ export const GreenSolutionsPage: React.FC<GreenSolutionsPageProps> = ({
             <h2 className="text-xl font-extrabold text-slate-900 tracking-tight">
               Green Intervention Library & Solutions Catalog
             </h2>
-            <DemoTag label={loading ? "Loading live catalog..." : "Live Backend Catalog"} />
           </div>
           <p className="text-xs text-slate-600">
             A curated database of vetted hardware, clean technology, and operational retrofits designed for SME payback periods under 4 years. <span className="text-emerald-700 font-semibold">{recommendedIds.size ? "Personalized recommendations highlighted." : ""}</span>
           </p>
-          {error && <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1 mt-1">{error} – showing cached data.</p>}
+          {error && <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1 mt-1">{error}</p>}
         </div>
 
         <button
@@ -148,6 +144,18 @@ export const GreenSolutionsPage: React.FC<GreenSolutionsPageProps> = ({
       </div>
 
       {loading && <div className="flex items-center gap-2 text-xs text-slate-600"><Loader2 className="w-4 h-4 animate-spin" /> Loading solutions from backend...</div>}
+
+      {!loading && filteredSolutions.length === 0 && (
+        <EmptyState
+          icon={Lightbulb}
+          title={solutions.length === 0 ? 'Solution catalog unavailable' : 'No solutions match this filter'}
+          message={
+            solutions.length === 0
+              ? 'The intervention catalog is served by the backend. Check that the API is reachable and try again.'
+              : 'Try another category or clear the search text.'
+          }
+        />
+      )}
 
       {/* Solutions Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
